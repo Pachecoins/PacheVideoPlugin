@@ -1,0 +1,10 @@
+.DS_Store
+.build-macos-*/
+.venv/
+build/
+dist/
+*.pyc
+__pycache__/
+*.p12
+*.cer
+*.keychain-db

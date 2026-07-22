@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="index.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="brand-row">
+        <img class="brand-icon" src="icons/logo.png" alt="" />
+        <div>
+          <div class="eyebrow">PACHEVIDEO</div>
+          <h1>Video Downloader</h1>
+        </div>
+        <span id="helperDot" class="helper-dot" title="Helper desconectado"></span>
+      </header>
+
+      <section class="hero-card">
+        <div class="premium-pill">◆&nbsp; PREMIUM TOOL</div>
+        <h2>Descargá e importá</h2>
+        <p>El video queda listo dentro del proyecto activo.</p>
+      </section>
+
+      <section class="form-card">
+        <label for="url">URL del video</label>
+        <textarea
+          id="url"
+          rows="3"
+          spellcheck="false"
+          placeholder="Pegá acá la URL de YouTube o de otro sitio compatible…"
+        ></textarea>
+        <div class="url-action-row">
+          <span>Podés pegar enlaces largos completos.</span>
+          <button id="pasteButton" class="secondary compact">Pegar URL</button>
+        </div>
+
+        <div class="field-grid">
+          <div>
+            <label for="mode">Formato</label>
+            <select id="mode">
+              <option value="video">Video · MP4</option>
+              <option value="audio">Audio · MP3</option>
+            </select>
+          </div>
+          <div id="videoQualityField">
+            <label for="quality">Calidad</label>
+            <select id="quality">
+              <option value="max">Máxima</option>
+              <option value="2160">2160p</option>
+              <option value="1440">1440p</option>
+              <option value="1080">1080p</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
+            </select>
+          </div>
+          <div id="audioQualityField" class="hidden">
+            <label for="audioKbps">Calidad</label>
+            <select id="audioKbps">
+              <option value="320">320 kbps</option>
+              <option value="256">256 kbps</option>
+              <option value="192">192 kbps</option>
+              <option value="128">128 kbps</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="check-row">
+          <input id="autoImport" type="checkbox" checked />
+          <span>Importar automáticamente a Premiere</span>
+        </label>
+
+        <button id="downloadButton" class="primary">↓&nbsp;&nbsp;Descargar</button>
+      </section>
+
+      <section class="progress-card">
+        <div class="status-row">
+          <span id="status">Conectando con PacheVideo Helper…</span>
+          <strong id="percent">0%</strong>
+        </div>
+        <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+        <div id="detail" class="detail">El helper procesa yt-dlp y FFmpeg fuera de Premiere.</div>
+        <div class="action-row">
+          <button id="importButton" class="secondary" disabled>Importar</button>
+          <button id="folderButton" class="ghost" disabled>Abrir carpeta</button>
+        </div>
+      </section>
+
+      <footer>
+        <span>PacheVideo Tools · MVP 0.1</span>
+        <button id="reconnectButton" class="link-button">Reconectar</button>
+      </footer>
+    </main>
+  </body>
+</html>

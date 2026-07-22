@@ -1,0 +1,201 @@
+:root {
+  --bg: #080808;
+  --surface: #151515;
+  --surface-2: #1d1d1d;
+  --border: #2a2a2a;
+  --purple: #a020f0;
+  --purple-dark: #7016a8;
+  --purple-glow: #c15cff;
+  --gold: #d4af37;
+  --text: #f1f1f1;
+  --muted: #949494;
+  --success: #4caf50;
+  --danger: #e94560;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+}
+
+.app-shell {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+  overflow-x: hidden;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.eyebrow {
+  color: var(--gold);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+h1, h2, p { margin: 0; }
+h1 { margin-top: 2px; font-size: 16px; }
+h2 { margin-top: 8px; font-size: 20px; }
+
+.helper-dot {
+  width: 9px;
+  height: 9px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 8px currentColor;
+}
+
+.helper-dot.online { background: var(--success); }
+
+.hero-card,
+.form-card,
+.progress-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.hero-card {
+  margin-bottom: 10px;
+  padding: 16px;
+  background: linear-gradient(145deg, #211329, #121212 70%);
+}
+
+.hero-card p { margin-top: 6px; color: var(--muted); }
+
+.premium-pill {
+  display: inline-block;
+  padding: 4px 7px;
+  border: 1px solid #6f5520;
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.form-card, .progress-card { padding: 13px; }
+.progress-card { margin-top: 10px; }
+
+label {
+  display: block;
+  margin: 0 0 6px;
+  color: #b9b9b9;
+  font-weight: 600;
+}
+
+textarea, select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid #353535;
+  border-radius: 8px;
+  outline: none;
+  background: #101010;
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+textarea {
+  display: block;
+  min-height: 74px;
+  line-height: 1.45;
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+
+textarea:focus, select:focus { border-color: var(--purple); }
+
+.url-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 7px;
+}
+
+.url-action-row span {
+  min-width: 0;
+  color: #686868;
+  font-size: 10px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.field-grid > div { min-width: 0; }
+
+button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled { cursor: default; opacity: 0.42; }
+.primary {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 12px;
+  background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+  box-shadow: 0 5px 18px rgba(160, 32, 240, 0.22);
+}
+.secondary { background: var(--surface-2); border: 1px solid #3a3a3a; }
+.secondary.compact {
+  flex: 0 0 auto;
+  min-width: 78px;
+  padding: 0 12px;
+}
+.ghost { background: transparent; color: var(--gold); }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.status-row { display: flex; justify-content: space-between; gap: 10px; }
+.status-row strong { color: var(--purple-glow); }
+.progress-track { height: 6px; margin-top: 9px; overflow: hidden; border-radius: 99px; background: #292929; }
+.progress-bar { width: 0; height: 100%; background: linear-gradient(90deg, var(--purple-dark), var(--purple-glow)); transition: width 180ms ease; }
+.detail { min-height: 30px; margin-top: 9px; color: var(--muted); line-height: 1.4; }
+.action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 9px; }
+
+footer { display: flex; justify-content: space-between; margin-top: 12px; color: #606060; font-size: 10px; }
+.link-button { min-height: auto; padding: 0; background: transparent; color: #8c6ca0; font-size: 10px; }
+.hidden { display: none; }
+
+@media (max-width: 320px) {
+  .app-shell { padding: 12px; }
+  .field-grid { grid-template-columns: 1fr; }
+  .url-action-row { align-items: flex-end; flex-direction: column; }
+  .url-action-row span { align-self: flex-start; }
+}

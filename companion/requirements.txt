@@ -1,0 +1,2 @@
+yt-dlp[default]==2026.3.3
+pyinstaller==6.19.0
