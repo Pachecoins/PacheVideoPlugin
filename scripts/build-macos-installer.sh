@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="0.2.2"
+VERSION="0.2.3"
 FFMPEG_VERSION="8.0.1"
 FFMPEG_SHA256="05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
 LAME_VERSION="3.101"
@@ -52,12 +52,6 @@ make -j"$(sysctl -n hw.logicalcpu)"
 make install
 popd >/dev/null
 
-# FFmpeg 8.0.1 asks pkg-config for libmp3lame. LAME 3.101 ships the
-# compatible metadata as lame.pc, so expose the legacy package name too.
-LAME_PC="$LAME_PREFIX/lib/pkgconfig/lame.pc"
-[[ -f "$LAME_PC" ]] || { echo "LAME no generó $LAME_PC" >&2; exit 1; }
-cp "$LAME_PC" "$LAME_PREFIX/lib/pkgconfig/libmp3lame.pc"
-
 ARCHIVE="$BUILD/ffmpeg-$FFMPEG_VERSION.tar.xz"
 curl --fail --location --retry 3 \
   "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.xz" \
@@ -66,10 +60,12 @@ echo "$FFMPEG_SHA256  $ARCHIVE" | shasum -a 256 --check
 tar -xf "$ARCHIVE" -C "$BUILD"
 
 pushd "$BUILD/ffmpeg-$FFMPEG_VERSION" >/dev/null
-PKG_CONFIG_PATH="$LAME_PREFIX/lib/pkgconfig:$(brew --prefix x264)/lib/pkgconfig" \
+PKG_CONFIG_PATH="$(brew --prefix x264)/lib/pkgconfig" \
   ./configure \
     --prefix="$FFMPEG_PREFIX" \
     --cc=clang \
+    --extra-cflags="-I$LAME_PREFIX/include" \
+    --extra-ldflags="-L$LAME_PREFIX/lib" \
     --enable-gpl \
     --enable-libx264 \
     --enable-libmp3lame \
