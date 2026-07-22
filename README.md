@@ -41,6 +41,9 @@ Window > UXP Plugins > PacheVideo Tools
 ```
 
 To download without Premiere, open `PacheVideo` from the macOS Applications folder.
+The standalone app lets you choose a destination folder before each download.
+
+Inside Premiere, downloads default to the folder containing the active `.prproj` file. You can override it at any time with **Elegir…**. If the project has not been saved yet, PacheVideo falls back to `~/Downloads/PacheVideo`. The panel is vertically scrollable in compact or docked layouts.
 
 ## Build locally on a Mac
 
@@ -57,7 +60,7 @@ The installer and SHA-256 file are written to `dist/`.
 Create and push a version tag:
 
 ```bash
-git tag v0.3.0
+git tag v0.3.1
 git push origin main --tags
 ```
 

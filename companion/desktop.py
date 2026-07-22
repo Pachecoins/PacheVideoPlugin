@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+from tkinter import filedialog
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -17,7 +18,7 @@ from PIL import Image
 
 
 API_URL = "http://127.0.0.1:18765"
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 
 def resource_path(name: str) -> Path:
@@ -114,8 +115,30 @@ class PacheVideoApp(ctk.CTk):
         )
         self.paste_button.grid(row=2, column=1, padx=18, pady=(8, 14), sticky="e")
 
-        ctk.CTkLabel(form, text="Formato", anchor="w").grid(row=3, column=0, padx=(18, 8), pady=(0, 6), sticky="ew")
-        ctk.CTkLabel(form, text="Calidad", anchor="w").grid(row=3, column=1, padx=(8, 18), pady=(0, 6), sticky="ew")
+        ctk.CTkLabel(form, text="Carpeta de destino", anchor="w").grid(
+            row=3, column=0, columnspan=2, padx=18, pady=(0, 6), sticky="ew"
+        )
+        folder_row = ctk.CTkFrame(form, fg_color="transparent")
+        folder_row.grid(row=4, column=0, columnspan=2, padx=18, pady=(0, 14), sticky="ew")
+        folder_row.grid_columnconfigure(0, weight=1)
+        self.folder_entry = ctk.CTkEntry(
+            folder_row,
+            placeholder_text="~/Downloads/PacheVideo",
+            fg_color="#0e0e0e",
+            border_color="#353535",
+        )
+        self.folder_entry.grid(row=0, column=0, padx=(0, 8), sticky="ew")
+        ctk.CTkButton(
+            folder_row,
+            text="Elegir…",
+            width=92,
+            fg_color="#242424",
+            hover_color="#333333",
+            command=self.choose_folder,
+        ).grid(row=0, column=1)
+
+        ctk.CTkLabel(form, text="Formato", anchor="w").grid(row=5, column=0, padx=(18, 8), pady=(0, 6), sticky="ew")
+        ctk.CTkLabel(form, text="Calidad", anchor="w").grid(row=5, column=1, padx=(8, 18), pady=(0, 6), sticky="ew")
         self.mode_menu = ctk.CTkOptionMenu(
             form,
             values=["Video · MP4", "Audio · MP3"],
@@ -123,14 +146,14 @@ class PacheVideoApp(ctk.CTk):
             button_color="#8c1bd1",
             command=self.mode_changed,
         )
-        self.mode_menu.grid(row=4, column=0, padx=(18, 8), sticky="ew")
+        self.mode_menu.grid(row=6, column=0, padx=(18, 8), sticky="ew")
         self.quality_menu = ctk.CTkOptionMenu(
             form,
             values=["Máxima", "2160p", "1440p", "1080p", "720p", "480p"],
             fg_color="#242424",
             button_color="#343434",
         )
-        self.quality_menu.grid(row=4, column=1, padx=(8, 18), sticky="ew")
+        self.quality_menu.grid(row=6, column=1, padx=(8, 18), sticky="ew")
 
         self.download_button = ctk.CTkButton(
             form,
@@ -143,7 +166,7 @@ class PacheVideoApp(ctk.CTk):
             state="disabled",
             command=self.start_download,
         )
-        self.download_button.grid(row=5, column=0, columnspan=2, padx=18, pady=18, sticky="ew")
+        self.download_button.grid(row=7, column=0, columnspan=2, padx=18, pady=18, sticky="ew")
 
         progress = ctk.CTkFrame(self, fg_color="#151515", corner_radius=16, border_width=1, border_color="#292929")
         progress.grid(row=2, column=0, padx=28, pady=10, sticky="ew")
@@ -234,6 +257,7 @@ class PacheVideoApp(ctk.CTk):
                                 f"Descargas: {health.get('outputFolder', '')}",
                                 0,
                             ),
+                            self.set_default_folder(health.get("outputFolder", "")),
                         )
                     )
                     return
@@ -264,6 +288,17 @@ class PacheVideoApp(ctk.CTk):
         self.url_box.delete("1.0", "end")
         self.url_box.insert("1.0", value)
 
+    def set_default_folder(self, folder: str) -> None:
+        if folder and not self.folder_entry.get().strip():
+            self.folder_entry.insert(0, folder)
+
+    def choose_folder(self) -> None:
+        initial = self.folder_entry.get().strip() or str(Path.home() / "Downloads")
+        selected = filedialog.askdirectory(parent=self, initialdir=initial, mustexist=False)
+        if selected:
+            self.folder_entry.delete(0, "end")
+            self.folder_entry.insert(0, selected)
+
     def mode_changed(self, selected: str) -> None:
         if selected.startswith("Audio"):
             values = ["320 kbps", "256 kbps", "192 kbps", "128 kbps"]
@@ -285,6 +320,7 @@ class PacheVideoApp(ctk.CTk):
             "mode": "audio" if audio else "video",
             "quality": "max" if audio or quality_text == "Máxima" else quality_text.replace("p", ""),
             "audioKbps": quality_text.replace(" kbps", "") if audio else "320",
+            "outputFolder": self.folder_entry.get().strip(),
         }
         self.downloading = True
         self.current_folder = None

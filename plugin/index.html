@@ -65,6 +65,15 @@
           </div>
         </div>
 
+        <div class="destination-field">
+          <label for="outputFolder">Carpeta de destino</label>
+          <div class="folder-picker-row">
+            <input id="outputFolder" type="text" readonly placeholder="Detectando carpeta del proyecto…" />
+            <button id="chooseFolderButton" class="secondary compact">Elegir…</button>
+          </div>
+          <span id="folderHint" class="field-hint">Predeterminada: carpeta del proyecto de Premiere.</span>
+        </div>
+
         <label class="check-row">
           <input id="autoImport" type="checkbox" checked />
           <span>Importar automáticamente a Premiere</span>
@@ -87,7 +96,7 @@
       </section>
 
       <footer>
-        <span>PacheVideo Tools · 0.3.0</span>
+        <span>PacheVideo Tools · 0.3.1</span>
         <button id="reconnectButton" class="link-button">Reconectar</button>
       </footer>
     </main>

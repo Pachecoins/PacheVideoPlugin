@@ -20,7 +20,7 @@ import yt_dlp
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PACHEVIDEO_PORT", "18765"))
 OUTPUT_FOLDER = Path(os.environ.get("PACHEVIDEO_OUTPUT", "~/Downloads/PacheVideo")).expanduser().resolve()
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 
 def find_ffmpeg() -> str | None:
@@ -86,7 +86,7 @@ def format_selector(mode: str, quality: str) -> str:
     )
 
 
-def locate_output(ydl: yt_dlp.YoutubeDL, info: dict, mode: str) -> Path:
+def locate_output(ydl: yt_dlp.YoutubeDL, info: dict, mode: str, output_folder: Path) -> Path:
     prepared = Path(ydl.prepare_filename(info))
     expected = prepared.with_suffix(".mp3" if mode == "audio" else ".mp4")
     if expected.exists():
@@ -96,7 +96,7 @@ def locate_output(ydl: yt_dlp.YoutubeDL, info: dict, mode: str) -> Path:
 
     title_prefix = prepared.stem
     matches = sorted(
-        OUTPUT_FOLDER.glob(f"{title_prefix}.*"),
+        output_folder.glob(f"{title_prefix}.*"),
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
@@ -107,6 +107,8 @@ def locate_output(ydl: yt_dlp.YoutubeDL, info: dict, mode: str) -> Path:
 
 def run_download(job: Job) -> None:
     try:
+        output_folder = Path(job.folder).expanduser().resolve()
+        output_folder.mkdir(parents=True, exist_ok=True)
         update_job(job, status="downloading", progress=1, message="Analizando el video…")
 
         def progress_hook(data: dict) -> None:
@@ -136,7 +138,7 @@ def run_download(job: Job) -> None:
 
         options = {
             "format": format_selector(job.mode, job.quality),
-            "outtmpl": str(OUTPUT_FOLDER / "%(title)s.%(ext)s"),
+            "outtmpl": str(output_folder / "%(title)s.%(ext)s"),
             "noplaylist": True,
             "progress_hooks": [progress_hook],
             "postprocessors": postprocessors,
@@ -148,7 +150,7 @@ def run_download(job: Job) -> None:
 
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(job.url, download=True)
-            output = locate_output(ydl, info, job.mode)
+            output = locate_output(ydl, info, job.mode, output_folder)
 
         update_job(
             job,
@@ -170,7 +172,7 @@ def run_download(job: Job) -> None:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "PacheVideoHelper/0.1"
+    server_version = f"PacheVideoHelper/{VERSION}"
 
     def log_message(self, format: str, *args) -> None:
         print(f"[{self.log_date_time_string()}] {format % args}")
@@ -245,12 +247,23 @@ class Handler(BaseHTTPRequestHandler):
             if audio_kbps not in {"320", "256", "192", "128"}:
                 raise ValueError("Calidad de audio inválida")
 
+            requested_folder = str(payload.get("outputFolder") or "").strip()
+            output_folder = Path(requested_folder).expanduser() if requested_folder else OUTPUT_FOLDER
+            if not output_folder.is_absolute():
+                raise ValueError("La carpeta de destino debe usar una ruta absoluta")
+            try:
+                output_folder = output_folder.resolve()
+                output_folder.mkdir(parents=True, exist_ok=True)
+            except OSError as error:
+                raise ValueError(f"No se puede usar la carpeta de destino: {error}") from error
+
             job = Job(
                 id=uuid.uuid4().hex,
                 url=url,
                 mode=mode,
                 quality=quality,
                 audioKbps=audio_kbps,
+                folder=str(output_folder),
             )
             with jobs_lock:
                 jobs[job.id] = job

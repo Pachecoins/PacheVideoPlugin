@@ -66,7 +66,7 @@ app = BUNDLE(
     name="PacheVideo.app",
     icon=str(ICON),
     bundle_identifier="com.pachevideo.app",
-    version="0.3.0",
+    version="0.3.1",
     codesign_identity=CODESIGN_IDENTITY,
     info_plist={
         "CFBundleDisplayName": "PacheVideo",

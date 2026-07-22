@@ -1,4 +1,5 @@
 const { entrypoints, shell } = require("uxp");
+const { localFileSystem } = require("uxp").storage;
 const premiere = require("premierepro");
 
 const API_CANDIDATES = ["http://127.0.0.1:18765", "http://localhost:18765"];
@@ -7,6 +8,8 @@ let currentJobId = null;
 let currentFilePath = null;
 let currentFolder = null;
 let pollTimer = null;
+let selectedOutputFolder = "";
+let outputFolderWasChosen = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -21,6 +24,50 @@ function updateProgress(percent, status, detail = "") {
   $("percent").textContent = `${Math.round(safe)}%`;
   $("status").textContent = status;
   if (detail) $("detail").textContent = detail;
+}
+
+function parentFolder(filePath) {
+  const normalized = String(filePath || "").replace(/\\/g, "/");
+  const separator = normalized.lastIndexOf("/");
+  if (separator < 0) return "";
+  if (separator === 0) return "/";
+  if (separator === 2 && normalized[1] === ":") return normalized.slice(0, 3);
+  return normalized.slice(0, separator);
+}
+
+function showOutputFolder(folder, source) {
+  selectedOutputFolder = folder || "";
+  $("outputFolder").value = selectedOutputFolder;
+  $("outputFolder").title = selectedOutputFolder;
+  $("folderHint").textContent = source;
+}
+
+async function setAutomaticOutputFolder(fallbackFolder = "") {
+  if (outputFolderWasChosen) return;
+
+  try {
+    const project = await premiere.Project.getActiveProject();
+    const projectFolder = parentFolder(project && project.path);
+    if (projectFolder) {
+      showOutputFolder(projectFolder, "Predeterminada: carpeta del proyecto de Premiere.");
+      return;
+    }
+  } catch (_) {
+    // El helper provee el destino seguro cuando no hay proyecto activo.
+  }
+
+  showOutputFolder(fallbackFolder, "Proyecto sin guardar: se usa Descargas/PacheVideo.");
+}
+
+async function chooseOutputFolder() {
+  try {
+    const folder = await localFileSystem.getFolder();
+    if (!folder) return;
+    outputFolderWasChosen = true;
+    showOutputFolder(folder.nativePath, "Carpeta elegida manualmente.");
+  } catch (error) {
+    updateProgress(0, "No se pudo elegir la carpeta", error.message);
+  }
 }
 
 async function api(path, options = {}, baseUrl = activeApi) {
@@ -41,7 +88,8 @@ async function checkHelper() {
       const health = await api("/health", {}, candidate);
       activeApi = candidate;
       setHelperOnline(true);
-      updateProgress(0, "Listo para descargar", `Helper ${health.version} · ${health.outputFolder}`);
+      await setAutomaticOutputFolder(health.outputFolder);
+      updateProgress(0, "Listo para descargar", `Destino · ${selectedOutputFolder || health.outputFolder}`);
       $("downloadButton").disabled = false;
       return;
     } catch (error) {
@@ -90,8 +138,9 @@ async function startDownload() {
       body: JSON.stringify({
         url,
         mode: $("mode").value,
-        quality: $("quality").value,
+        quality: $("mode").value === "audio" ? "max" : $("quality").value,
         audioKbps: $("audioKbps").value,
+        outputFolder: selectedOutputFolder,
       }),
     });
     currentJobId = job.id;
@@ -161,6 +210,7 @@ async function openCurrentFolder() {
 function wireUi() {
   $("pasteButton").addEventListener("click", pasteUrl);
   $("mode").addEventListener("change", onModeChanged);
+  $("chooseFolderButton").addEventListener("click", chooseOutputFolder);
   $("downloadButton").addEventListener("click", startDownload);
   $("importButton").addEventListener("click", importCurrentFile);
   $("folderButton").addEventListener("click", openCurrentFolder);
