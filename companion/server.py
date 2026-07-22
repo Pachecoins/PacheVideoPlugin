@@ -20,7 +20,7 @@ import yt_dlp
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PACHEVIDEO_PORT", "18765"))
 OUTPUT_FOLDER = Path(os.environ.get("PACHEVIDEO_OUTPUT", "~/Downloads/PacheVideo")).expanduser().resolve()
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 
 def find_ffmpeg() -> str | None:

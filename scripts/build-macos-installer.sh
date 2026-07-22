@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="0.2.1"
+VERSION="0.2.2"
 FFMPEG_VERSION="8.0.1"
 FFMPEG_SHA256="05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
 LAME_VERSION="3.101"
@@ -46,6 +46,7 @@ pushd "$BUILD/lame-$LAME_VERSION" >/dev/null
   --prefix="$LAME_PREFIX" \
   --disable-shared \
   --enable-static \
+  --disable-decoder \
   --disable-frontend
 make -j"$(sysctl -n hw.logicalcpu)"
 make install
