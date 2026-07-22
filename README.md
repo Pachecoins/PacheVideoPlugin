@@ -25,10 +25,10 @@ Each `.pkg` installs:
 From a cloned repository:
 
 ```bash
-git clone https://github.com/Pachecoins/pachevideo-premiere.git
-cd pachevideo-premiere
+git clone https://github.com/Pachecoins/PacheVideoPlugin.git
+cd PacheVideoPlugin
 chmod +x scripts/install-latest-macos.sh
-./scripts/install-latest-macos.sh Pachecoins/pachevideo-premiere
+./scripts/install-latest-macos.sh Pachecoins/PacheVideoPlugin
 ```
 
 Or download the installer for your architecture from **Releases** and double-click the `.pkg`.
