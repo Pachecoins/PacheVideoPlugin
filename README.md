@@ -9,9 +9,10 @@ The macOS GitHub build produces two complete installers:
 
 Each `.pkg` installs:
 
-1. `/Applications/PacheVideo Helper.app`, including FFmpeg 8.0.1 and yt-dlp.
-2. The UXP panel as `PacheVideo-Premiere.ccx` through Adobe UPIA.
-3. `/Library/LaunchAgents/com.pachevideo.helper.plist` so the helper starts automatically.
+1. `/Applications/PacheVideo.app`, a standalone downloader that works without Premiere.
+2. `/Applications/PacheVideo Helper.app`, including FFmpeg 8.0.1 and yt-dlp.
+3. The UXP panel as `PacheVideo-Premiere.ccx` through Adobe UPIA.
+4. `/Library/LaunchAgents/com.pachevideo.helper.plist` so the helper starts automatically.
 
 ## Requirements
 
@@ -39,6 +40,8 @@ After installation, restart Premiere and open:
 Window > UXP Plugins > PacheVideo Tools
 ```
 
+To download without Premiere, open `PacheVideo` from the macOS Applications folder.
+
 ## Build locally on a Mac
 
 ```bash
@@ -54,7 +57,7 @@ The installer and SHA-256 file are written to `dist/`.
 Create and push a version tag:
 
 ```bash
-git tag v0.2.3
+git tag v0.3.0
 git push origin main --tags
 ```
 

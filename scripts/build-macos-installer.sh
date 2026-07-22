@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="0.2.3"
+VERSION="0.3.0"
 FFMPEG_VERSION="8.0.1"
 FFMPEG_SHA256="05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
 LAME_VERSION="3.101"
@@ -28,7 +28,7 @@ FINAL_PKG="$DIST/PacheVideo-Premiere-macOS-$ARCH.pkg"
 [[ -f "$ROOT/companion/server.py" ]] || { echo "Falta companion/server.py" >&2; exit 1; }
 
 command -v brew >/dev/null 2>&1 || { echo "Instalá Homebrew desde https://brew.sh" >&2; exit 1; }
-brew install python@3.14 pkg-config x264 nasm
+brew install python@3.14 python-tk@3.14 pkg-config x264 nasm
 PYTHON_BIN="$(brew --prefix python@3.14)/bin/python3.14"
 
 rm -rf "$BUILD"
@@ -110,8 +110,19 @@ MACOS_APPLICATION_IDENTITY="${MACOS_APPLICATION_IDENTITY:-}" \
     --workpath "$BUILD/pyinstaller-work" \
     "$ROOT/companion/PacheVideoHelper.spec"
 
+PACHEVIDEO_ICON="$ICON" \
+MACOS_APPLICATION_IDENTITY="${MACOS_APPLICATION_IDENTITY:-}" \
+  "$VENV/bin/pyinstaller" \
+    --noconfirm \
+    --clean \
+    --distpath "$PYI_DIST" \
+    --workpath "$BUILD/pyinstaller-work" \
+    "$ROOT/companion/PacheVideo.spec"
+
 HELPER_APP="$PYI_DIST/PacheVideo Helper.app"
+PACHEVIDEO_APP="$PYI_DIST/PacheVideo.app"
 [[ -d "$HELPER_APP" ]] || { echo "PyInstaller no generó $HELPER_APP" >&2; exit 1; }
+[[ -d "$PACHEVIDEO_APP" ]] || { echo "PyInstaller no generó $PACHEVIDEO_APP" >&2; exit 1; }
 BUNDLED_FFMPEG="$(find "$HELPER_APP" -type f -name ffmpeg -print -quit)"
 [[ -n "$BUNDLED_FFMPEG" && -x "$BUNDLED_FFMPEG" ]] || {
   echo "El Helper no contiene un FFmpeg ejecutable" >&2
@@ -123,13 +134,15 @@ if otool -L "$BUNDLED_FFMPEG" | grep -E '/(opt/homebrew|usr/local)/(Cellar|opt)/
   exit 1
 fi
 
-if [[ -n "${MACOS_APPLICATION_IDENTITY:-}" ]]; then
-  codesign --force --deep --options runtime --timestamp \
-    --sign "$MACOS_APPLICATION_IDENTITY" "$HELPER_APP"
-else
-  codesign --force --deep --sign - "$HELPER_APP"
-fi
-codesign --verify --deep --strict --verbose=2 "$HELPER_APP"
+for app in "$HELPER_APP" "$PACHEVIDEO_APP"; do
+  if [[ -n "${MACOS_APPLICATION_IDENTITY:-}" ]]; then
+    codesign --force --deep --options runtime --timestamp \
+      --sign "$MACOS_APPLICATION_IDENTITY" "$app"
+  else
+    codesign --force --deep --sign - "$app"
+  fi
+  codesign --verify --deep --strict --verbose=2 "$app"
+done
 
 pushd "$ROOT/plugin" >/dev/null
 zip -q -r "$CCX" . -x '*.DS_Store' '__MACOSX/*'
@@ -141,6 +154,7 @@ mkdir -p \
   "$PKG_ROOT/Library/Application Support/PacheVideo" \
   "$PKG_ROOT/Library/LaunchAgents"
 cp -R "$HELPER_APP" "$PKG_ROOT/Applications/"
+cp -R "$PACHEVIDEO_APP" "$PKG_ROOT/Applications/"
 cp "$CCX" "$PKG_ROOT/Library/Application Support/PacheVideo/PacheVideo-Premiere.ccx"
 cp "$ROOT/packaging/macos/com.pachevideo.helper.plist" \
   "$PKG_ROOT/Library/LaunchAgents/com.pachevideo.helper.plist"
