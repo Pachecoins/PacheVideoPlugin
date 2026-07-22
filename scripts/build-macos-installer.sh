@@ -2,9 +2,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="0.2.0"
+VERSION="0.2.1"
 FFMPEG_VERSION="8.0.1"
 FFMPEG_SHA256="05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
+LAME_VERSION="3.101"
+LAME_SHA256="7578af6eebd578b2bd64e468fac4ae1f03670a7e028166e67f855674b9b6aeac"
 ARCH="$(uname -m)"
 
 case "$ARCH" in
@@ -15,6 +17,7 @@ esac
 BUILD="$ROOT/.build-macos-$ARCH"
 VENV="$BUILD/venv"
 FFMPEG_PREFIX="$BUILD/ffmpeg-prefix"
+LAME_PREFIX="$BUILD/lame-prefix"
 PYI_DIST="$BUILD/pyinstaller-dist"
 PKG_ROOT="$BUILD/pkgroot"
 CCX="$BUILD/PacheVideo-Premiere.ccx"
@@ -25,11 +28,34 @@ FINAL_PKG="$DIST/PacheVideo-Premiere-macOS-$ARCH.pkg"
 [[ -f "$ROOT/companion/server.py" ]] || { echo "Falta companion/server.py" >&2; exit 1; }
 
 command -v brew >/dev/null 2>&1 || { echo "Instalá Homebrew desde https://brew.sh" >&2; exit 1; }
-brew install python@3.14 pkg-config x264 lame
+brew install python@3.14 pkg-config x264 nasm
 PYTHON_BIN="$(brew --prefix python@3.14)/bin/python3.14"
 
 rm -rf "$BUILD"
 mkdir -p "$BUILD" "$DIST"
+
+LAME_ARCHIVE="$BUILD/lame-$LAME_VERSION.tar.gz"
+curl --fail --location --retry 3 \
+  "https://downloads.sourceforge.net/project/lame/lame/$LAME_VERSION/lame-$LAME_VERSION.tar.gz" \
+  --output "$LAME_ARCHIVE"
+echo "$LAME_SHA256  $LAME_ARCHIVE" | shasum -a 256 --check
+tar -xf "$LAME_ARCHIVE" -C "$BUILD"
+
+pushd "$BUILD/lame-$LAME_VERSION" >/dev/null
+./configure \
+  --prefix="$LAME_PREFIX" \
+  --disable-shared \
+  --enable-static \
+  --disable-frontend
+make -j"$(sysctl -n hw.logicalcpu)"
+make install
+popd >/dev/null
+
+# FFmpeg 8.0.1 asks pkg-config for libmp3lame. LAME 3.101 ships the
+# compatible metadata as lame.pc, so expose the legacy package name too.
+LAME_PC="$LAME_PREFIX/lib/pkgconfig/lame.pc"
+[[ -f "$LAME_PC" ]] || { echo "LAME no generó $LAME_PC" >&2; exit 1; }
+cp "$LAME_PC" "$LAME_PREFIX/lib/pkgconfig/libmp3lame.pc"
 
 ARCHIVE="$BUILD/ffmpeg-$FFMPEG_VERSION.tar.xz"
 curl --fail --location --retry 3 \
@@ -39,7 +65,7 @@ echo "$FFMPEG_SHA256  $ARCHIVE" | shasum -a 256 --check
 tar -xf "$ARCHIVE" -C "$BUILD"
 
 pushd "$BUILD/ffmpeg-$FFMPEG_VERSION" >/dev/null
-PKG_CONFIG_PATH="$(brew --prefix x264)/lib/pkgconfig:$(brew --prefix lame)/lib/pkgconfig" \
+PKG_CONFIG_PATH="$LAME_PREFIX/lib/pkgconfig:$(brew --prefix x264)/lib/pkgconfig" \
   ./configure \
     --prefix="$FFMPEG_PREFIX" \
     --cc=clang \
@@ -58,6 +84,8 @@ popd >/dev/null
 
 FFMPEG_BIN="$FFMPEG_PREFIX/bin/ffmpeg"
 "$FFMPEG_BIN" -version | head -n 1 | grep -F "ffmpeg version $FFMPEG_VERSION"
+"$FFMPEG_BIN" -hide_banner -encoders | grep -F "libmp3lame"
+"$FFMPEG_BIN" -hide_banner -encoders | grep -F "libx264"
 
 ICONSET="$BUILD/PacheVideo.iconset"
 ICON="$BUILD/PacheVideo.icns"
@@ -87,6 +115,16 @@ MACOS_APPLICATION_IDENTITY="${MACOS_APPLICATION_IDENTITY:-}" \
 
 HELPER_APP="$PYI_DIST/PacheVideo Helper.app"
 [[ -d "$HELPER_APP" ]] || { echo "PyInstaller no generó $HELPER_APP" >&2; exit 1; }
+BUNDLED_FFMPEG="$(find "$HELPER_APP" -type f -name ffmpeg -print -quit)"
+[[ -n "$BUNDLED_FFMPEG" && -x "$BUNDLED_FFMPEG" ]] || {
+  echo "El Helper no contiene un FFmpeg ejecutable" >&2
+  exit 1
+}
+"$BUNDLED_FFMPEG" -version | head -n 1 | grep -F "ffmpeg version $FFMPEG_VERSION"
+if otool -L "$BUNDLED_FFMPEG" | grep -E '/(opt/homebrew|usr/local)/(Cellar|opt)/'; then
+  echo "FFmpeg conserva dependencias de Homebrew fuera del bundle" >&2
+  exit 1
+fi
 
 if [[ -n "${MACOS_APPLICATION_IDENTITY:-}" ]]; then
   codesign --force --deep --options runtime --timestamp \
