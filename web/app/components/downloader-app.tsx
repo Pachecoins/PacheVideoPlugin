@@ -112,8 +112,6 @@ export default function DownloaderApp() {
   const [authMessage, setAuthMessage] = useState("");
   const [registrationPrompt, setRegistrationPrompt] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
-  const [termsChecked, setTermsChecked] = useState(false);
-  const [termsBusy, setTermsBusy] = useState(false);
   const [giftCode, setGiftCode] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [giftBusy, setGiftBusy] = useState(false);
@@ -131,6 +129,19 @@ export default function DownloaderApp() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const nextAccount = (await readJson(response)) as Account;
+      // Continuing with an authenticated account is the concise acceptance
+      // flow shown next to the email field. There is no separate checkbox.
+      if (token && nextAccount.authenticated && !nextAccount.termsAccepted) {
+        const acceptance = await fetch("/api/account/terms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: "{}",
+        });
+        if (acceptance.ok) {
+          setAccount((await readJson(acceptance)) as Account);
+          return;
+        }
+      }
       setAccount(nextAccount);
     } catch {
       setFormError("No pudimos inicializar tu cuenta. Recargá la página.");
@@ -465,26 +476,6 @@ export default function DownloaderApp() {
     }
   }
 
-  async function acceptTerms(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!accessToken || !termsChecked) return;
-    setTermsBusy(true);
-    setFormError("");
-    try {
-      const response = await fetch("/api/account/terms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: "{}",
-      });
-      const updated = (await readJson(response)) as Account;
-      setAccount(updated);
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "No pudimos registrar la aceptación.");
-    } finally {
-      setTermsBusy(false);
-    }
-  }
-
   async function requestAccessLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const auth = getSupabaseBrowserClient();
@@ -637,20 +628,6 @@ export default function DownloaderApp() {
             </div>
           ) : account.authenticated ? (
             <div className="account-signed-actions">
-              {!account.termsAccepted && (
-                <form className="terms-form" onSubmit={acceptTerms}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={termsChecked}
-                      onChange={(event) => setTermsChecked(event.target.checked)}
-                      required
-                    />
-                    Acepto los <Link href="/terminos" target="_blank">Términos</Link> y la <Link href="/privacidad" target="_blank">Política de Privacidad</Link>.
-                  </label>
-                  <button type="submit" disabled={!termsChecked || termsBusy}>{termsBusy ? "Guardando…" : "Aceptar y continuar"}</button>
-                </form>
-              )}
               {!proCandidate && (
                 <form className="gift-form" onSubmit={redeemGiftCode}>
                   <input
@@ -687,6 +664,7 @@ export default function DownloaderApp() {
               </div>
               {registrationPrompt && <small className="account-auth-warning" role="alert">{registrationPrompt}</small>}
               {authMessage && <small className="account-auth-message" role="status">{authMessage}</small>}
+              <small className="account-legal-note">Al continuar, aceptás los <Link href="/terminos" target="_blank">Términos</Link> y la <Link href="/privacidad" target="_blank">Política de Privacidad</Link>.</small>
             </form>
           )}
           {!authConfigured && <small>Registro preparado · falta conectar el servicio de email.</small>}

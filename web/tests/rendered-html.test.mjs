@@ -65,7 +65,7 @@ test("serves public legal pages and records explicit terms acceptance", async ()
 
   const source = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
   const route = await readFile(new URL("../app/api/account/terms/route.ts", import.meta.url), "utf8");
-  assert.match(source, /Acepto los/);
+  assert.match(source, /Al continuar, aceptás los/);
   assert.match(source, /\/api\/account\/terms/);
   assert.match(source, /href="\/terminos"/);
   assert.match(route, /\/api\/account\/terms/);
