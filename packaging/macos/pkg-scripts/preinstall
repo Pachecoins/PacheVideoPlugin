@@ -1,0 +1,13 @@
+#!/bin/bash
+set -u
+
+LABEL="com.pachevideo.helper"
+PLIST="/Library/LaunchAgents/${LABEL}.plist"
+CONSOLE_USER="$(stat -f '%Su' /dev/console 2>/dev/null || true)"
+
+if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" && -f "$PLIST" ]]; then
+  USER_ID="$(id -u "$CONSOLE_USER")"
+  launchctl bootout "gui/${USER_ID}" "$PLIST" >/dev/null 2>&1 || true
+fi
+
+exit 0

@@ -1,0 +1,21 @@
+#!/bin/bash
+set -u
+
+LOG="/var/log/PacheVideoInstaller.log"
+PLIST="/Library/LaunchAgents/com.pachevideo.helper.plist"
+
+exec >>"$LOG" 2>&1
+echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') Installing PacheVideo"
+
+CONSOLE_USER="$(stat -f '%Su' /dev/console 2>/dev/null || true)"
+if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" ]]; then
+  USER_ID="$(id -u "$CONSOLE_USER")"
+  chown root:wheel "$PLIST"
+  chmod 644 "$PLIST"
+  launchctl bootout "gui/${USER_ID}" "$PLIST" >/dev/null 2>&1 || true
+  launchctl bootstrap "gui/${USER_ID}" "$PLIST"
+  launchctl kickstart -k "gui/${USER_ID}/com.pachevideo.helper" || true
+fi
+
+echo "Instalación completada."
+exit 0

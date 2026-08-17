@@ -1,0 +1,4 @@
+yt-dlp[default]==2026.7.4
+pyinstaller==6.19.0
+customtkinter==5.2.2
+Pillow==12.1.1

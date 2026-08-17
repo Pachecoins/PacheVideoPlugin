@@ -1,0 +1,58 @@
+services:
+  api:
+    build:
+      context: ../server
+    restart: unless-stopped
+    environment:
+      PACHEVIDEO_PUBLIC_BASE_URL: ${PACHEVIDEO_PUBLIC_BASE_URL}
+      PACHEVIDEO_ALLOWED_ORIGINS: ${PACHEVIDEO_ALLOWED_ORIGINS}
+      PACHEVIDEO_ALLOWED_HOSTS: ${PACHEVIDEO_ALLOWED_HOSTS:-}
+      PACHEVIDEO_WORKERS: ${PACHEVIDEO_WORKERS:-2}
+      PACHEVIDEO_MAX_FILE_BYTES: ${PACHEVIDEO_MAX_FILE_BYTES:-2147483648}
+      PACHEVIDEO_MAX_DURATION_SECONDS: ${PACHEVIDEO_MAX_DURATION_SECONDS:-10800}
+      PACHEVIDEO_JOB_TTL_SECONDS: ${PACHEVIDEO_JOB_TTL_SECONDS:-3600}
+      PACHEVIDEO_RATE_LIMIT_PER_MINUTE: ${PACHEVIDEO_RATE_LIMIT_PER_MINUTE:-8}
+      PACHEVIDEO_MAX_ACTIVE_JOBS: ${PACHEVIDEO_MAX_ACTIVE_JOBS:-40}
+      PACHEVIDEO_DOWNLOAD_ATTEMPTS: ${PACHEVIDEO_DOWNLOAD_ATTEMPTS:-10}
+      PACHEVIDEO_RETRY_BASE_SECONDS: ${PACHEVIDEO_RETRY_BASE_SECONDS:-1.5}
+      PACHEVIDEO_RETRY_MAX_SECONDS: ${PACHEVIDEO_RETRY_MAX_SECONDS:-20}
+      PACHEVIDEO_COOKIE_SECURE: ${PACHEVIDEO_COOKIE_SECURE:-true}
+      PACHEVIDEO_MP_ACCESS_TOKEN: ${PACHEVIDEO_MP_ACCESS_TOKEN:-}
+      PACHEVIDEO_MP_BACK_URL: ${PACHEVIDEO_MP_BACK_URL:-}
+      PACHEVIDEO_MP_SUBSCRIPTION_AMOUNT: ${PACHEVIDEO_MP_SUBSCRIPTION_AMOUNT:-9999.99}
+      PACHEVIDEO_MP_SUBSCRIPTION_CURRENCY: ${PACHEVIDEO_MP_SUBSCRIPTION_CURRENCY:-ARS}
+      PACHEVIDEO_PRO_BATCH_MAX_ITEMS: ${PACHEVIDEO_PRO_BATCH_MAX_ITEMS:-20}
+      PACHEVIDEO_SUPABASE_URL: ${PACHEVIDEO_SUPABASE_URL:-}
+      PACHEVIDEO_SUPABASE_ANON_KEY: ${PACHEVIDEO_SUPABASE_ANON_KEY:-}
+    volumes:
+      - pachevideo_data:/data
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      PACHEVIDEO_DOMAIN: ${PACHEVIDEO_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pachevideo_data:
+  caddy_data:
+  caddy_config:

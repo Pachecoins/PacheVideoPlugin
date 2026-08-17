@@ -1,0 +1,17 @@
+{
+  "name": "PacheVideo",
+  "short_name": "PacheVideo",
+  "description": "Prepará videos y audio desde cualquier dispositivo.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09080b",
+  "theme_color": "#09080b",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "165x165",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
