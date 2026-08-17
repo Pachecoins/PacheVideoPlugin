@@ -215,6 +215,14 @@ class SecurityTests(unittest.TestCase):
             self.assertEqual([retry_delay_seconds(value) for value in (1, 2, 3)], [1.5, 3.0, 6.0])
             self.assertEqual(retry_delay_seconds(20), 20)
 
+    def test_processing_deadline_stops_a_stalled_job(self) -> None:
+        with patch("server.app.main.time.monotonic", return_value=100):
+            with self.assertRaises(TimeoutError):
+                backend.ensure_processing_deadline(100)
+
+    def test_default_download_attempts_are_bounded_for_shared_workers(self) -> None:
+        self.assertLessEqual(backend.DOWNLOAD_ATTEMPTS, 4)
+
     def test_global_active_job_capacity_rejects_a_burst(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)

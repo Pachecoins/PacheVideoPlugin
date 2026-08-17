@@ -56,7 +56,8 @@ FREE_ACTIVE_JOBS = max(1, int(os.getenv("PACHEVIDEO_FREE_ACTIVE_JOBS", "1")))
 PRO_ACTIVE_JOBS = max(1, int(os.getenv("PACHEVIDEO_PRO_ACTIVE_JOBS", "3")))
 ACCOUNT_RATE_LIMIT_PER_MINUTE = max(1, int(os.getenv("PACHEVIDEO_ACCOUNT_RATE_LIMIT_PER_MINUTE", "25")))
 DISK_HEADROOM_MULTIPLIER = max(1.0, float(os.getenv("PACHEVIDEO_DISK_HEADROOM_MULTIPLIER", "1.2")))
-DOWNLOAD_ATTEMPTS = max(1, int(os.getenv("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "10")))
+DOWNLOAD_ATTEMPTS = max(1, int(os.getenv("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "3")))
+MAX_PROCESSING_SECONDS = max(60, int(os.getenv("PACHEVIDEO_MAX_PROCESSING_SECONDS", "3600")))
 RETRY_BASE_SECONDS = max(0.0, float(os.getenv("PACHEVIDEO_RETRY_BASE_SECONDS", "1.5")))
 RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.getenv("PACHEVIDEO_RETRY_MAX_SECONDS", "20")))
 FREE_DOWNLOAD_RATE_LIMIT = max(0, int(os.getenv("PACHEVIDEO_FREE_DOWNLOAD_RATE_LIMIT", "2000000")))
@@ -722,6 +723,11 @@ def retry_delay_seconds(attempt: int) -> float:
     return min(RETRY_MAX_SECONDS, RETRY_BASE_SECONDS * (2 ** max(0, attempt - 1)))
 
 
+def ensure_processing_deadline(deadline: float) -> None:
+    if time.monotonic() >= deadline:
+        raise TimeoutError("La descarga superó el tiempo máximo de procesamiento")
+
+
 def clear_attempt_files(folder: Path) -> None:
     if not folder.exists():
         return
@@ -850,6 +856,7 @@ def run_download(
     account_id: str | None = None,
 ) -> None:
     folder = DOWNLOAD_DIR / job_id
+    deadline = time.monotonic() + MAX_PROCESSING_SECONDS
     try:
         folder.mkdir(parents=True, exist_ok=False)
         update_job(
@@ -862,12 +869,14 @@ def run_download(
         )
 
         def match_filter(info: dict, *, incomplete: bool) -> str | None:
+            ensure_processing_deadline(deadline)
             duration = info.get("duration")
             if duration and duration > MAX_DURATION_SECONDS:
                 return f"El contenido supera el límite de {MAX_DURATION_SECONDS // 60} minutos"
             return None
 
         def progress_hook(data: dict) -> None:
+            ensure_processing_deadline(deadline)
             status = data.get("status")
             if status == "downloading":
                 total = data.get("total_bytes") or data.get("total_bytes_estimate") or 0
@@ -932,6 +941,7 @@ def run_download(
         output: Path | None = None
         last_error: Exception | None = None
         for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+            ensure_processing_deadline(deadline)
             if attempt > 1:
                 clear_attempt_files(folder)
                 update_job(
@@ -965,10 +975,14 @@ def run_download(
                     detail="",
                 )
                 if delay:
+                    ensure_processing_deadline(deadline)
+                    if time.monotonic() + delay >= deadline:
+                        raise TimeoutError("La descarga superó el tiempo máximo de procesamiento")
                     time.sleep(delay)
 
         if info is None or output is None:
             raise last_error or RuntimeError("La descarga no pudo iniciarse")
+        ensure_processing_deadline(deadline)
         if output.stat().st_size > MAX_FILE_BYTES:
             raise ValueError("El archivo supera el límite permitido")
         update_job(
