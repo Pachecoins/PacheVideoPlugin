@@ -30,6 +30,7 @@ type Account = {
   subscriptionStatus?: string | null;
   authenticated: boolean;
   email?: string | null;
+  termsAccepted: boolean;
 };
 
 type HistoryItem = {
@@ -111,6 +112,8 @@ export default function DownloaderApp() {
   const [authMessage, setAuthMessage] = useState("");
   const [registrationPrompt, setRegistrationPrompt] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  const [termsChecked, setTermsChecked] = useState(false);
+  const [termsBusy, setTermsBusy] = useState(false);
   const [giftCode, setGiftCode] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [giftBusy, setGiftBusy] = useState(false);
@@ -294,6 +297,11 @@ export default function DownloaderApp() {
       setFormError("Tu cuenta se está preparando automáticamente.");
       return;
     }
+    if (account.authenticated && !account.termsAccepted) {
+      setFormError("Aceptá los Términos y la Política de Privacidad para continuar.");
+      document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     if (mode === "video" && account.plan !== "pro" && account.freeVideosRemaining <= 0) {
       setFormError(account.authenticated
         ? `Ya usaste tus ${account.freeVideoLimit} videos gratis. Activá Video Pro para continuar.`
@@ -434,6 +442,11 @@ export default function DownloaderApp() {
       window.setTimeout(() => document.querySelector<HTMLInputElement>("#account-email")?.focus(), 250);
       return;
     }
+    if (!account.termsAccepted) {
+      setFormError("Aceptá los Términos y la Política de Privacidad para continuar.");
+      document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     try {
       const response = await fetch("/api/billing/subscription", {
         method: "POST",
@@ -448,6 +461,26 @@ export default function DownloaderApp() {
       window.location.assign(payload.checkoutUrl);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "No pudimos iniciar la suscripción");
+    }
+  }
+
+  async function acceptTerms(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !termsChecked) return;
+    setTermsBusy(true);
+    setFormError("");
+    try {
+      const response = await fetch("/api/account/terms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: "{}",
+      });
+      const updated = (await readJson(response)) as Account;
+      setAccount(updated);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "No pudimos registrar la aceptación.");
+    } finally {
+      setTermsBusy(false);
     }
   }
 
@@ -591,6 +624,20 @@ export default function DownloaderApp() {
             </div>
           ) : account.authenticated ? (
             <div className="account-signed-actions">
+              {!account.termsAccepted && (
+                <form className="terms-form" onSubmit={acceptTerms}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={termsChecked}
+                      onChange={(event) => setTermsChecked(event.target.checked)}
+                      required
+                    />
+                    Acepto los <Link href="/terminos" target="_blank">Términos</Link> y la <Link href="/privacidad" target="_blank">Política de Privacidad</Link>.
+                  </label>
+                  <button type="submit" disabled={!termsChecked || termsBusy}>{termsBusy ? "Guardando…" : "Aceptar y continuar"}</button>
+                </form>
+              )}
               {!proCandidate && (
                 <form className="gift-form" onSubmit={redeemGiftCode}>
                   <input
@@ -918,6 +965,11 @@ export default function DownloaderApp() {
             </article>
           </div>
         </section>}
+        <footer className="legal-links" aria-label="Información legal">
+          <Link href="/terminos">Términos</Link>
+          <Link href="/privacidad">Privacidad</Link>
+          <Link href="/dmca">Copyright</Link>
+        </footer>
       </section>
     </main>
   );

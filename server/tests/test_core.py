@@ -207,6 +207,49 @@ class SecurityTests(unittest.TestCase):
         self.assertNotIn("/srv/", str(public))
         self.assertNotIn("cdn.internal", str(public))
 
+    def test_invalid_job_token_does_not_disclose_a_real_job(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+            ):
+                backend.initialize_database()
+                with backend.database() as connection:
+                    connection.execute(
+                        """
+                        INSERT INTO jobs (id, source_url, mode, quality, audio_kbps, status, progress, message, token_hash, created_at, expires_at)
+                        VALUES ('existing-job', 'https://example.com/video', 'video', '1080', '320', 'queued', 0, 'En cola', ?, 0, 9999999999)
+                        """,
+                        (backend.sha256(b"real-token").hexdigest(),),
+                    )
+                with self.assertRaises(backend.HTTPException) as blocked:
+                    backend.job_status("existing-job", "invalid-token")
+
+        self.assertEqual(blocked.exception.status_code, 404)
+
+    def test_registered_account_must_accept_current_terms_before_use(self) -> None:
+        request = backend.Request({"type": "http", "method": "POST", "path": "/api/account/terms", "headers": []})
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(backend, "supabase_user_from_request", return_value={"id": "terms-user", "email": "terms@example.com"}),
+            ):
+                backend.initialize_database()
+                account = backend.registered_account_from_request(request)
+                with self.assertRaises(backend.HTTPException) as blocked:
+                    backend.require_terms_accepted(account)
+                accepted = backend.accept_terms(request)
+                refreshed = backend.registered_account_from_request(request)
+                backend.require_terms_accepted(refreshed)
+
+        self.assertEqual(blocked.exception.status_code, 403)
+        self.assertTrue(accepted["termsAccepted"])
+
     def test_retry_delay_uses_exponential_backoff(self) -> None:
         with (
             patch.object(backend, "RETRY_BASE_SECONDS", 1.5),
@@ -688,8 +731,8 @@ class BillingSessionTests(unittest.TestCase):
                 account, token = backend.create_anonymous_account()
                 with backend.database() as connection:
                     connection.execute(
-                        "UPDATE accounts SET auth_provider_id = 'idempotent-user', email = 'idempotent@example.com' WHERE id = ?",
-                        (account["id"],),
+                        "UPDATE accounts SET auth_provider_id = 'idempotent-user', email = 'idempotent@example.com', terms_accepted_at = 1, terms_version = ? WHERE id = ?",
+                        (backend.TERMS_VERSION, account["id"]),
                     )
                 request = backend.Request(
                     {
@@ -745,6 +788,12 @@ class BillingSessionTests(unittest.TestCase):
             ):
                 backend.initialize_database()
                 payload = backend.CreateJob(url="https://example.com/video")
+                account = backend.registered_account_from_request(request)
+                with backend.database() as connection:
+                    connection.execute(
+                        "UPDATE accounts SET terms_accepted_at = 1, terms_version = ? WHERE id = ?",
+                        (backend.TERMS_VERSION, account["id"]),
+                    )
                 for _ in range(5):
                     backend.create_job(payload, request)
                 with self.assertRaises(backend.HTTPException) as blocked:
@@ -791,7 +840,10 @@ class BillingSessionTests(unittest.TestCase):
                 backend.initialize_database()
                 account = backend.registered_account_from_request(request)
                 with backend.database() as connection:
-                    connection.execute("UPDATE accounts SET plan = 'pro' WHERE id = ?", (account["id"],))
+                    connection.execute(
+                        "UPDATE accounts SET plan = 'pro', terms_accepted_at = 1, terms_version = ? WHERE id = ?",
+                        (backend.TERMS_VERSION, account["id"]),
+                    )
                 payload = backend.CreateBatch(
                     urls=["https://youtube.com/watch?v=one", "https://instagram.com/reel/two"],
                     requestId="a" * 32,
@@ -880,8 +932,14 @@ class BillingSessionTests(unittest.TestCase):
                     "supabase_user_from_request",
                     return_value={"id": "gift-recipient", "email": "regalo@example.com"},
                 ),
-            ):
+                ):
                 backend.initialize_database()
+                account = backend.registered_account_from_request(request)
+                with backend.database() as connection:
+                    connection.execute(
+                        "UPDATE accounts SET terms_accepted_at = 1, terms_version = ? WHERE id = ?",
+                        (backend.TERMS_VERSION, account["id"]),
+                    )
                 redeemed = backend.redeem_gift_code(
                     backend.RedeemGiftCode(code="PV-GIFT-66A07F2701"), request
                 )

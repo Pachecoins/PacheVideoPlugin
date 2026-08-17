@@ -73,6 +73,7 @@ MP_SUBSCRIPTION_AMOUNT = float(os.getenv("PACHEVIDEO_MP_SUBSCRIPTION_AMOUNT", "9
 MP_SUBSCRIPTION_CURRENCY = os.getenv("PACHEVIDEO_MP_SUBSCRIPTION_CURRENCY", "ARS").strip() or "ARS"
 SUPABASE_URL = os.getenv("PACHEVIDEO_SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("PACHEVIDEO_SUPABASE_ANON_KEY", "").strip()
+TERMS_VERSION = "2026-08-17"
 
 # One-use launch gifts. Only hashes are kept in the repository and database.
 LAUNCH_GIFT_CODE_HASHES = (
@@ -264,6 +265,8 @@ def initialize_database() -> None:
             "auth_provider_id": "ALTER TABLE accounts ADD COLUMN auth_provider_id TEXT",
             "email": "ALTER TABLE accounts ADD COLUMN email TEXT",
             "pro_gift": "ALTER TABLE accounts ADD COLUMN pro_gift INTEGER NOT NULL DEFAULT 0",
+            "terms_accepted_at": "ALTER TABLE accounts ADD COLUMN terms_accepted_at REAL",
+            "terms_version": "ALTER TABLE accounts ADD COLUMN terms_version TEXT",
         }
         for column, statement in account_migrations.items():
             if column not in account_columns:
@@ -610,6 +613,7 @@ def account_public(account: sqlite3.Row) -> dict[str, object]:
         "subscriptionStatus": subscription["status"] if subscription else None,
         "authenticated": bool(account["auth_provider_id"]),
         "email": account["email"],
+        "termsAccepted": bool(account["terms_accepted_at"] and account["terms_version"] == TERMS_VERSION),
     }
 
 
@@ -625,6 +629,11 @@ def require_registered_account(request: Request) -> sqlite3.Row:
     if not account:
         raise HTTPException(status_code=401, detail="Ingresá con tu email para activar Video Pro")
     return account
+
+
+def require_terms_accepted(account: sqlite3.Row) -> None:
+    if not account["terms_accepted_at"] or account["terms_version"] != TERMS_VERSION:
+        raise HTTPException(status_code=403, detail="Aceptá los Términos y la Política de Privacidad para continuar.")
 
 
 def valid_email(value: str) -> bool:
@@ -1218,9 +1227,23 @@ def account(request: Request) -> JSONResponse:
     return response
 
 
+@app.post("/api/account/terms")
+def accept_terms(request: Request) -> dict[str, object]:
+    current = require_registered_account(request)
+    now = time.time()
+    with database() as connection:
+        connection.execute(
+            "UPDATE accounts SET terms_accepted_at = ?, terms_version = ?, updated_at = ? WHERE id = ?",
+            (now, TERMS_VERSION, now, current["id"]),
+        )
+        updated = connection.execute("SELECT * FROM accounts WHERE id = ?", (current["id"],)).fetchone()
+    return account_public(updated)
+
+
 @app.post("/api/billing/subscriptions")
 def start_subscription(payload: StartSubscription, request: Request) -> dict[str, object]:
     current = require_registered_account(request)
+    require_terms_accepted(current)
     email = str(current["email"] or "").strip().lower()
     if effective_plan(current) == "pro":
         raise HTTPException(status_code=409, detail="Esta cuenta ya tiene Video Pro activo")
@@ -1317,6 +1340,7 @@ async def mercado_pago_webhook(request: Request) -> dict[str, bool]:
 def redeem_gift_code(payload: RedeemGiftCode, request: Request) -> dict[str, object]:
     """Redeem a launch gift exactly once for the signed-in recipient."""
     current = require_registered_account(request)
+    require_terms_accepted(current)
     code = payload.code.strip().upper().replace(" ", "")
     if not code.startswith("PV-GIFT-") or len(code) > 80:
         raise HTTPException(status_code=400, detail="El código de regalo no es válido")
@@ -1508,6 +1532,8 @@ def create_job(payload: CreateJob, request: Request) -> dict[str, object]:
     consume_rate_limit(client)
     account = require_account(request)
     plan = effective_plan(account)
+    if account["auth_provider_id"]:
+        require_terms_accepted(account)
     consume_account_rate_limit(account["id"])
     enforce_account_job_capacity(account["id"], plan)
     enforce_active_job_capacity()
@@ -1531,6 +1557,7 @@ def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
     account = require_account(request)
     if effective_plan(account) != "pro":
         raise HTTPException(status_code=403, detail="Las listas de enlaces son una función de Video Pro")
+    require_terms_accepted(account)
     consume_account_rate_limit(account["id"])
     enforce_account_job_capacity(account["id"], "pro")
     validate_request_identity(payload.requestId, payload.requestToken)

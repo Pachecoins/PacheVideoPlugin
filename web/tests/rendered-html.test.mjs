@@ -47,6 +47,24 @@ test("legacy Pro page no longer exposes a demo entitlement", async () => {
   assert.equal(response.headers.get("location"), "/app#planes");
 });
 
+test("serves public legal pages and records explicit terms acceptance", async () => {
+  for (const [path, title] of [["/terminos", "Términos de uso"], ["/privacidad", "Política de privacidad"], ["/dmca", "Reclamos de copyright"]]) {
+    const response = await render(path);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), new RegExp(title));
+  }
+  const legacyLegal = await render("/legal");
+  assert.equal(legacyLegal.status, 307);
+  assert.equal(legacyLegal.headers.get("location"), "/terminos");
+
+  const source = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/account/terms/route.ts", import.meta.url), "utf8");
+  assert.match(source, /Acepto los/);
+  assert.match(source, /\/api\/account\/terms/);
+  assert.match(source, /href="\/terminos"/);
+  assert.match(route, /\/api\/account\/terms/);
+});
+
 test("downloader recovers automatically without a manual retry control", async () => {
   const source = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
   const authSource = await readFile(new URL("../app/lib/supabase-browser.ts", import.meta.url), "utf8");

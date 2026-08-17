@@ -361,6 +361,25 @@ button.plan-status { cursor: pointer; }
 .history-copy > small { overflow: hidden; color: #918878; font-size: 9px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .history-empty { margin: 0; padding: 25px 18px; color: #a69c8b; font-size: 11px; line-height: 1.5; }
 
+.terms-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; color: #d8d0df; border: 1px solid rgba(191, 126, 236, .28); border-radius: 11px; background: rgba(118, 37, 174, .1); font-size: 11px; line-height: 1.45; }
+.terms-form label { display: flex; gap: 8px; align-items: flex-start; }
+.terms-form input { width: 15px; height: 15px; margin: 1px 0 0; accent-color: var(--purple); }
+.terms-form a { color: #e0a3ff; }
+.terms-form button { min-height: 34px; color: #f5eafe; border: 1px solid rgba(202, 121, 255, .4); border-radius: 9px; background: rgba(161, 58, 222, .26); font-size: 11px; font-weight: 800; }
+.terms-form button:disabled { cursor: not-allowed; opacity: .5; }
+
+.legal-page { width: min(760px, calc(100% - 36px)); min-height: 100dvh; margin: 0 auto; padding: 52px 0 82px; color: var(--ink); }
+.legal-page nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 48px; }
+.legal-page article { padding: clamp(22px, 5vw, 42px); border: 1px solid var(--line); border-radius: 22px; background: rgba(23, 19, 28, .88); }
+.legal-page h1 { margin: 10px 0; font-size: clamp(32px, 6vw, 52px); letter-spacing: -.04em; }
+.legal-page h2 { margin: 32px 0 10px; font-size: 19px; }
+.legal-page p, .legal-page li { color: #c0b9c8; font-size: 15px; line-height: 1.65; }
+.legal-page a { color: #dc9cff; }
+.legal-note { padding: 12px 14px; color: #f2d18b !important; border-left: 3px solid var(--gold); background: rgba(244, 191, 84, .08); }
+.legal-links { display: flex; justify-content: center; gap: 18px; margin: 42px 0 8px; color: #8e8594; font-size: 11px; }
+.legal-links a { color: inherit; text-decoration: none; }
+.legal-links a:hover { color: #e1b2ff; }
+
 
 @media (max-width: 600px) {
   .topbar { padding: 18px; }
