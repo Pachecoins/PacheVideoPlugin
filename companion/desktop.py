@@ -27,12 +27,32 @@ def resource_path(name: str) -> Path:
     return root / name
 
 
+def session_token_path() -> Path:
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        return root / "PacheVideo" / "session.token"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "PacheVideo" / "session.token"
+    root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    return root / "PacheVideo" / "session.token"
+
+
+def helper_token() -> str:
+    token = session_token_path().read_text(encoding="utf-8").strip()
+    if not token:
+        raise ConnectionError("El helper todavía no creó su sesión local")
+    return token
+
+
 def api_json(path: str, payload: dict | None = None, timeout: float = 8) -> dict:
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
     request = Request(
         f"{API_URL}{path}",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {helper_token()}",
+        },
         method="POST" if payload is not None else "GET",
     )
     try:
@@ -380,6 +400,7 @@ class PacheVideoApp(ctk.CTk):
 
         def worker() -> None:
             try:
+                api_json("/folders/allow", {"outputFolder": payload["outputFolder"]}, timeout=8)
                 create_errors = 0
                 while True:
                     try:

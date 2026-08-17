@@ -1,6 +1,9 @@
 const { entrypoints, shell } = require("uxp");
 const { localFileSystem } = require("uxp").storage;
 const premiere = require("premierepro");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
 const API_CANDIDATES = ["http://127.0.0.1:18765", "http://localhost:18765"];
 let activeApi = API_CANDIDATES[0];
@@ -12,6 +15,22 @@ let selectedOutputFolder = "";
 let outputFolderWasChosen = false;
 
 const $ = (id) => document.getElementById(id);
+
+function sessionTokenPath() {
+  if (process.platform === "win32") {
+    return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "PacheVideo", "session.token");
+  }
+  if (process.platform === "darwin") {
+    return path.join(os.homedir(), "Library", "Application Support", "PacheVideo", "session.token");
+  }
+  return path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), ".local", "state"), "PacheVideo", "session.token");
+}
+
+function helperToken() {
+  const token = fs.readFileSync(sessionTokenPath(), "utf8").trim();
+  if (!token) throw new Error("El helper todavía no creó su sesión local.");
+  return token;
+}
 
 function setHelperOnline(online) {
   $("helperDot").classList.toggle("online", online);
@@ -74,7 +93,11 @@ async function api(path, options = {}, baseUrl = activeApi) {
   const response = await fetch(`${baseUrl}${path}`, {
     ...options,
     credentials: "omit",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${helperToken()}`,
+      ...(options.headers || {}),
+    },
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -133,6 +156,10 @@ async function startDownload() {
   updateProgress(1, "Iniciando descarga…", "Preparando yt-dlp");
 
   try {
+    await api("/folders/allow", {
+      method: "POST",
+      body: JSON.stringify({ outputFolder: selectedOutputFolder }),
+    });
     const job = await api("/downloads", {
       method: "POST",
       body: JSON.stringify({
