@@ -56,6 +56,9 @@ jobs:
       - name: Build installer
         shell: bash
         env:
+          # GitHub-hosted runners can inherit an unrelated untrusted tap. The
+          # build installs only declared formulae from Homebrew/core.
+          HOMEBREW_NO_REQUIRE_TAP_TRUST: "1"
           MACOS_APPLICATION_IDENTITY: ${{ secrets.MACOS_APPLICATION_IDENTITY }}
           MACOS_INSTALLER_IDENTITY: ${{ secrets.MACOS_INSTALLER_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -64,7 +67,7 @@ jobs:
         run: |
           chmod +x scripts/build-macos-installer.sh
           chmod +x packaging/macos/pkg-scripts/preinstall packaging/macos/pkg-scripts/postinstall
-          scripts/build-macos-installer.sh
+          PACHEVIDEO_VERSION="${GITHUB_REF_NAME#v}" scripts/build-macos-installer.sh
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

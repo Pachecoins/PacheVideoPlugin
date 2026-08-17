@@ -600,8 +600,8 @@ export default function DownloaderApp() {
         <button type="button" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((open) => !open)}>Descargar app <i aria-hidden="true">→</i></button>
         {desktopMenuOpen && (
           <div className="desktop-download-menu" role="menu">
-            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.0/PacheVideo-Setup-Windows-x64.exe">Windows <small>Instalador .exe</small></a>
-            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.0/PacheVideo-macOS-arm64.pkg">Mac <small>Apple Silicon · .pkg</small></a>
+            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.1/PacheVideo-Setup-Windows-x64.exe">Windows <small>Instalador .exe</small></a>
+            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.1/PacheVideo-macOS-arm64.pkg">Mac <small>Apple Silicon · .pkg</small></a>
           </div>
         )}
       </section>
