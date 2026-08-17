@@ -113,6 +113,10 @@ class SecurityTests(unittest.TestCase):
     def test_retry_classifier_separates_transient_and_permanent_errors(self) -> None:
         self.assertTrue(is_retryable_download_error(yt_dlp.utils.DownloadError("HTTP Error 503")))
         self.assertFalse(is_retryable_download_error(yt_dlp.utils.DownloadError("Private video")))
+        self.assertFalse(is_retryable_download_error(yt_dlp.utils.DownloadError("Sign in to confirm you're not a bot")))
+        self.assertIn("verificación", backend.public_download_error(
+            yt_dlp.utils.DownloadError("Sign in to confirm you're not a bot")
+        ))
 
     def test_retry_delay_uses_exponential_backoff(self) -> None:
         with (

@@ -98,6 +98,9 @@ PERMANENT_ERROR_MARKERS = (
     "video unavailable",
     "login required",
     "sign in to confirm your age",
+    "sign in to confirm you're not a bot",
+    "sign in to confirm you’re not a bot",
+    "not a bot",
     "copyright",
 )
 
@@ -544,6 +547,21 @@ def is_retryable_download_error(error: Exception) -> bool:
     )
 
 
+def public_download_error(error: Exception) -> str:
+    """Keep upstream diagnostics useful without exposing a raw provider error."""
+    message = str(error).lower()
+    if "not a bot" in message:
+        return (
+            "Esta fuente pidió una verificación que no se puede completar desde el servidor. "
+            "Probá otro enlace público compatible o usá el archivo original."
+        )
+    if "private video" in message or "login required" in message:
+        return "El contenido requiere acceso privado y no se puede preparar desde PacheVideo."
+    if "copyright" in message:
+        return "Esta fuente no permite preparar este contenido."
+    return "No pudimos preparar este archivo. Probá nuevamente más tarde o con otra fuente compatible."
+
+
 def retry_delay_seconds(attempt: int) -> float:
     return min(RETRY_MAX_SECONDS, RETRY_BASE_SECONDS * (2 ** max(0, attempt - 1)))
 
@@ -825,8 +843,8 @@ def run_download(
             job_id,
             status="error",
             message="No pudimos preparar el archivo",
-            detail=str(error),
-            error=str(error),
+            detail=public_download_error(error),
+            error=public_download_error(error),
             expires_at=time.time() + JOB_TTL_SECONDS,
         )
 
