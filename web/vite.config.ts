@@ -14,6 +14,16 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  // Keep the public production routes in source control so future deploys do
+  // not accidentally detach the website from its domain.
+  routes: [
+    { pattern: "pachevideo.com/*", zone_name: "pachevideo.com" },
+    { pattern: "www.pachevideo.com/*", zone_name: "pachevideo.com" },
+  ],
+  workers_dev: false,
+  vars: {
+    PACHEVIDEO_API_URL: "https://api.pachevideo.com",
+  },
   d1_databases: d1
     ? [
         {
