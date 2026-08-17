@@ -40,7 +40,7 @@ export default function LandingPage() {
             Funciona desde el celular y la computadora.
           </p>
           <div className="hero-actions">
-            <Link className="landing-primary" href="/app#cuenta" prefetch={false}>Crear cuenta gratis <ArrowIcon /></Link>
+            <Link className="landing-primary" href="/app?auth=signup#cuenta" prefetch={false}>Crear cuenta gratis <ArrowIcon /></Link>
             <a className="landing-secondary" href="#como-funciona">Ver cómo funciona</a>
           </div>
           <div className="hero-proof" aria-label="Beneficios principales">
@@ -127,7 +127,7 @@ export default function LandingPage() {
               <li><CheckIcon /> Acceso desde cualquier dispositivo</li>
               <li className="plan-muted"><CheckIcon /> Incluye anuncios</li>
             </ul>
-            <Link className="plan-button secondary" href="/app#cuenta" prefetch={false}>Crear cuenta gratis</Link>
+            <Link className="plan-button secondary" href="/app?auth=signup#cuenta" prefetch={false}>Crear cuenta gratis</Link>
           </article>
 
           <article className="landing-plan-card pro">
@@ -167,7 +167,7 @@ export default function LandingPage() {
         <span>LISTO PARA PROBAR</span>
         <h2>Tu próximo archivo empieza con un enlace.</h2>
         <p>Creá tu cuenta y recibí 5 videos gratis. No necesitás tarjeta ni instalar nada.</p>
-        <Link className="landing-primary" href="/app#cuenta" prefetch={false}>Crear cuenta gratis <ArrowIcon /></Link>
+        <Link className="landing-primary" href="/app?auth=signup#cuenta" prefetch={false}>Crear cuenta gratis <ArrowIcon /></Link>
       </section>
 
       <footer className="landing-footer">

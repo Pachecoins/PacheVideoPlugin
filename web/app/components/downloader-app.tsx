@@ -142,6 +142,19 @@ export default function DownloaderApp() {
     };
   }, [loadAccount]);
 
+  // Links from the landing page intentionally land on the real signup form,
+  // not merely on the app screen. This also preserves a normal sign-in path
+  // for returning users.
+  useEffect(() => {
+    const intent = new URLSearchParams(window.location.search).get("auth");
+    if (intent !== "signup") return;
+    setAuthMode("signup");
+    window.setTimeout(() => {
+      document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.querySelector<HTMLInputElement>("#account-email")?.focus();
+    }, 100);
+  }, []);
+
   async function poll(jobId: string, token: string) {
     try {
       const response = await fetch(
