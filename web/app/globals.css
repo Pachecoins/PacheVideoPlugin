@@ -49,9 +49,10 @@ a, summary { cursor: pointer; }
 .desktop-promo button { min-height: 34px; display: inline-flex; align-items: center; gap: 8px; padding: 0 11px; color: #2a1907; border: 0; border-radius: 9px; background: linear-gradient(135deg, var(--gold-bright), var(--gold)); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .desktop-promo i { font-style: normal; font-size: 16px; }
 .desktop-download-menu { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 2px; }
-.desktop-download-menu a { min-height: 44px; display: flex; flex-direction: column; justify-content: center; padding: 8px 11px; color: #fff0c8; border: 1px solid rgba(255,225,151,.31); border-radius: 10px; background: rgba(11,8,5,.45); text-decoration: none; font-size: 11px; font-weight: 850; }
+.desktop-download-menu a, .desktop-download-pending { min-height: 44px; display: flex; flex-direction: column; justify-content: center; padding: 8px 11px; color: #fff0c8; border: 1px solid rgba(255,225,151,.31); border-radius: 10px; background: rgba(11,8,5,.45); text-decoration: none; font-size: 11px; font-weight: 850; }
 .desktop-download-menu a:hover { border-color: rgba(255,226,154,.9); background: rgba(88,56,10,.35); }
 .desktop-download-menu small { margin-top: 2px; color: #c9b789; font-size: 9px; font-weight: 600; }
+.desktop-download-pending { color: #aa9b7c; border-style: dashed; cursor: wait; }
 .brand { color: #fff; text-decoration: none; display: flex; gap: 11px; align-items: center; font-weight: 900; letter-spacing: .12em; font-size: 14px; }
 .brand-logo { width: 34px; height: 34px; flex: 0 0 auto; object-fit: cover; border-radius: 9px; box-shadow: 0 0 20px rgba(199, 146, 69, .22); }
 .brand-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; background: linear-gradient(145deg, #c566ff, #7217b8); box-shadow: 0 0 26px rgba(162,56,242,.28); font-size: 17px; letter-spacing: 0; }
