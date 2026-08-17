@@ -406,15 +406,23 @@ export default function DownloaderApp() {
     }
     setAuthBusy(true);
     setAuthMessage("");
-    const { error } = await auth.auth.signInWithOtp({
-      email: loginEmail.trim(),
-      options: {
-        shouldCreateUser: authMode === "signup",
-        emailRedirectTo: `${window.location.origin}/app`,
-      },
-    });
+    const result = await Promise.race([
+      auth.auth.signInWithOtp({
+        email: loginEmail.trim(),
+        options: {
+          shouldCreateUser: authMode === "signup",
+          emailRedirectTo: `${window.location.origin}/app`,
+        },
+      }).then(({ error }) => ({ error, timedOut: false })),
+      wait(20_000).then(() => ({
+        error: new Error("El correo está demorando más de lo normal."),
+        timedOut: true,
+      })),
+    ]);
     setAuthBusy(false);
-    setAuthMessage(error
+    setAuthMessage(result.timedOut
+      ? "El correo está demorando más de lo normal. Revisá que SMTP esté guardado en Supabase y probá de nuevo."
+      : result.error
       ? authMode === "signin"
         ? "No encontramos esa cuenta o no pudimos enviar el enlace. Revisá el email."
         : "No pudimos crear la cuenta. Revisá el email."
