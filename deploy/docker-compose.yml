@@ -35,6 +35,16 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health')"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
 
   caddy:
     image: caddy:2.10-alpine
