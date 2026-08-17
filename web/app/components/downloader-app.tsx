@@ -117,6 +117,7 @@ export default function DownloaderApp() {
   const [giftCode, setGiftCode] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [giftBusy, setGiftBusy] = useState(false);
+  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
   const [startingDownload, setStartingDownload] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -593,16 +594,17 @@ export default function DownloaderApp() {
         </div>
       </nav>
 
-      <a
-        className="desktop-promo"
-        href="https://github.com/Pachecoins/PacheVideoPlugin/releases"
-        target="_blank"
-        rel="noreferrer"
-      >
+      <section className="desktop-promo" aria-label="Descargar PacheVideo Desktop">
         <span className="desktop-promo-icon" aria-hidden="true">↧</span>
         <span><b>PacheVideo Desktop Pro</b><small>Instalá la app para máximo rendimiento en tus descargas.</small></span>
-        <strong>Descargar app <i aria-hidden="true">→</i></strong>
-      </a>
+        <button type="button" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((open) => !open)}>Descargar app <i aria-hidden="true">→</i></button>
+        {desktopMenuOpen && (
+          <div className="desktop-download-menu" role="menu">
+            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.0/PacheVideo-Setup-Windows-x64.exe">Windows <small>Instalador .exe</small></a>
+            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.0/PacheVideo-macOS-arm64.pkg">Mac <small>Apple Silicon · .pkg</small></a>
+          </div>
+        )}
+      </section>
 
       <section className="app-hero" id="inicio">
         <div className="eyebrow">TU VIDEO, LISTO EN SEGUNDOS</div>
