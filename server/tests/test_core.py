@@ -4,6 +4,7 @@ import socket
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -238,6 +239,54 @@ class SecurityTests(unittest.TestCase):
                     backend.enforce_active_job_capacity()
 
         self.assertEqual(blocked.exception.status_code, 503)
+        self.assertEqual(blocked.exception.headers["Retry-After"], "60")
+
+    def test_account_active_job_limit_rejects_second_free_download(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(backend, "FREE_ACTIVE_JOBS", 1),
+            ):
+                backend.initialize_database()
+                with backend.database() as connection:
+                    connection.execute("INSERT INTO accounts (id, created_at, updated_at) VALUES ('free-user', 0, 0)")
+                    connection.execute(
+                        """
+                        INSERT INTO jobs (id, source_url, mode, quality, audio_kbps, status, progress, message, token_hash, account_id, created_at, expires_at)
+                        VALUES ('active-free', 'https://example.com/a', 'audio', '1080', '320', 'downloading', 1, 'Descargando', 'token', 'free-user', 0, 9999999999)
+                        """
+                    )
+                with self.assertRaises(backend.HTTPException) as blocked:
+                    backend.enforce_account_job_capacity("free-user", "free")
+
+        self.assertEqual(blocked.exception.status_code, 429)
+
+    def test_disk_guard_rejects_when_worst_case_queue_does_not_fit(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(backend.shutil, "disk_usage", return_value=SimpleNamespace(free=1)),
+            ):
+                backend.initialize_database()
+                with self.assertRaises(backend.HTTPException) as blocked:
+                    backend.enforce_disk_capacity()
+
+        self.assertEqual(blocked.exception.status_code, 503)
+        self.assertEqual(blocked.exception.headers["Retry-After"], "300")
+
+    def test_account_rate_limit_is_independent_and_purges_expired_windows(self) -> None:
+        backend.account_rate_windows.clear()
+        with patch.object(backend, "ACCOUNT_RATE_LIMIT_PER_MINUTE", 1):
+            backend.consume_account_rate_limit("account-a")
+            with self.assertRaises(backend.HTTPException) as blocked:
+                backend.consume_account_rate_limit("account-a")
+        self.assertEqual(blocked.exception.status_code, 429)
 
 
 class DownloadRetryTests(unittest.TestCase):

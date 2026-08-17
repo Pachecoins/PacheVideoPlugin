@@ -52,6 +52,10 @@ HISTORY_TTL_SECONDS = int(os.getenv("PACHEVIDEO_HISTORY_TTL_SECONDS", str(60 * 6
 WORKERS = max(1, int(os.getenv("PACHEVIDEO_WORKERS", "2")))
 RATE_LIMIT_PER_MINUTE = max(1, int(os.getenv("PACHEVIDEO_RATE_LIMIT_PER_MINUTE", "8")))
 MAX_ACTIVE_JOBS = max(1, int(os.getenv("PACHEVIDEO_MAX_ACTIVE_JOBS", "40")))
+FREE_ACTIVE_JOBS = max(1, int(os.getenv("PACHEVIDEO_FREE_ACTIVE_JOBS", "1")))
+PRO_ACTIVE_JOBS = max(1, int(os.getenv("PACHEVIDEO_PRO_ACTIVE_JOBS", "3")))
+ACCOUNT_RATE_LIMIT_PER_MINUTE = max(1, int(os.getenv("PACHEVIDEO_ACCOUNT_RATE_LIMIT_PER_MINUTE", "25")))
+DISK_HEADROOM_MULTIPLIER = max(1.0, float(os.getenv("PACHEVIDEO_DISK_HEADROOM_MULTIPLIER", "1.2")))
 DOWNLOAD_ATTEMPTS = max(1, int(os.getenv("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "10")))
 RETRY_BASE_SECONDS = max(0.0, float(os.getenv("PACHEVIDEO_RETRY_BASE_SECONDS", "1.5")))
 RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.getenv("PACHEVIDEO_RETRY_MAX_SECONDS", "20")))
@@ -124,6 +128,7 @@ PERMANENT_ERROR_MARKERS = (
 
 executor = ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix="pachevideo")
 rate_windows: dict[str, deque[float]] = defaultdict(deque)
+account_rate_windows: dict[str, deque[float]] = defaultdict(deque)
 rate_lock = threading.Lock()
 stop_cleanup = threading.Event()
 
@@ -1063,11 +1068,28 @@ def cleanup_expired() -> None:
 def consume_rate_limit(client: str) -> None:
     now = time.time()
     with rate_lock:
+        for key, entries in list(rate_windows.items()):
+            while entries and entries[0] < now - 60:
+                entries.popleft()
+            if not entries:
+                rate_windows.pop(key, None)
         window = rate_windows[client]
-        while window and window[0] < now - 60:
-            window.popleft()
         if len(window) >= RATE_LIMIT_PER_MINUTE:
             raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Esperá un minuto.")
+        window.append(now)
+
+
+def consume_account_rate_limit(account_id: str) -> None:
+    now = time.time()
+    with rate_lock:
+        for key, entries in list(account_rate_windows.items()):
+            while entries and entries[0] < now - 60:
+                entries.popleft()
+            if not entries:
+                account_rate_windows.pop(key, None)
+        window = account_rate_windows[account_id]
+        if len(window) >= ACCOUNT_RATE_LIMIT_PER_MINUTE:
+            raise HTTPException(status_code=429, detail="Esta cuenta alcanzó el límite de solicitudes por minuto.")
         window.append(now)
 
 
@@ -1089,6 +1111,38 @@ def enforce_active_job_capacity(incoming: int = 1) -> None:
         raise HTTPException(
             status_code=503,
             detail="Hay muchas descargas en curso. Tu archivo se podrá preparar en unos minutos.",
+            headers={"Retry-After": "60"},
+        )
+
+
+def enforce_account_job_capacity(account_id: str, plan: Literal["free", "pro"]) -> None:
+    limit = PRO_ACTIVE_JOBS if plan == "pro" else FREE_ACTIVE_JOBS
+    with database() as connection:
+        active = connection.execute(
+            """
+            SELECT COUNT(*) FROM jobs
+            WHERE account_id = ? AND status IN ('downloading', 'processing', 'retrying')
+            """,
+            (account_id,),
+        ).fetchone()[0]
+    if active >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Tu plan permite hasta {limit} descarga{'s' if limit != 1 else ''} simultánea{'s' if limit != 1 else ''}.",
+        )
+
+
+def enforce_disk_capacity(incoming: int = 1) -> None:
+    with database() as connection:
+        pending = connection.execute(
+            "SELECT COUNT(*) FROM jobs WHERE status IN ('queued', 'downloading', 'processing', 'retrying')"
+        ).fetchone()[0]
+    required = int(MAX_FILE_BYTES * (pending + incoming) * DISK_HEADROOM_MULTIPLIER)
+    if shutil.disk_usage(DOWNLOAD_DIR).free < required:
+        raise HTTPException(
+            status_code=503,
+            detail="No hay espacio suficiente para preparar otra descarga en este momento.",
+            headers={"Retry-After": "300"},
         )
 
 
@@ -1439,8 +1493,11 @@ def create_job(payload: CreateJob, request: Request) -> dict[str, object]:
     client = request_client_ip(request)
     consume_rate_limit(client)
     account = require_account(request)
-    enforce_active_job_capacity()
     plan = effective_plan(account)
+    consume_account_rate_limit(account["id"])
+    enforce_account_job_capacity(account["id"], plan)
+    enforce_active_job_capacity()
+    enforce_disk_capacity()
     validate_request_identity(payload.requestId, payload.requestToken)
     return enqueue_job(
         payload,
@@ -1460,6 +1517,8 @@ def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
     account = require_account(request)
     if effective_plan(account) != "pro":
         raise HTTPException(status_code=403, detail="Las listas de enlaces son una función de Video Pro")
+    consume_account_rate_limit(account["id"])
+    enforce_account_job_capacity(account["id"], "pro")
     validate_request_identity(payload.requestId, payload.requestToken)
     urls = list(dict.fromkeys(str(item) for item in payload.urls))
     if not urls:
@@ -1467,6 +1526,7 @@ def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
     if len(urls) > PRO_BATCH_MAX_ITEMS:
         raise HTTPException(status_code=400, detail=f"Video Pro permite hasta {PRO_BATCH_MAX_ITEMS} enlaces por lista")
     enforce_active_job_capacity(len(urls))
+    enforce_disk_capacity(len(urls))
 
     jobs: list[dict[str, object]] = []
     for index, raw_url in enumerate(urls):
