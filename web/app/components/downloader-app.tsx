@@ -83,6 +83,7 @@ export default function DownloaderApp() {
   const [accessToken, setAccessToken] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [authMessage, setAuthMessage] = useState("");
+  const [registrationPrompt, setRegistrationPrompt] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [giftCode, setGiftCode] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
@@ -369,14 +370,16 @@ export default function DownloaderApp() {
 
   async function startSubscription() {
     setFormError("");
+    setRegistrationPrompt("");
     if (!account) {
       setFormError("Tu cuenta se está preparando automáticamente.");
       return;
     }
     if (account.plan === "pro") return;
     if (!account.authenticated || !accessToken) {
-      setFormError("Ingresá con tu email antes de activar Video Pro.");
+      setRegistrationPrompt("Ingresá con tu email antes de activar Video Pro.");
       document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => document.querySelector<HTMLInputElement>("#account-email")?.focus(), 250);
       return;
     }
     try {
@@ -405,6 +408,7 @@ export default function DownloaderApp() {
     }
     setAuthBusy(true);
     setAuthMessage("");
+    setRegistrationPrompt("");
     const result = await Promise.race([
       auth.auth.signInWithOtp({
         email: loginEmail.trim(),
@@ -456,6 +460,7 @@ export default function DownloaderApp() {
     if (!auth) return;
     await auth.auth.signOut();
     setAccessToken("");
+    setRegistrationPrompt("");
     setAuthMessage("Sesión cerrada.");
     await loadAccount();
   }
@@ -565,19 +570,19 @@ export default function DownloaderApp() {
                   {authBusy ? "Enviando…" : "Continuar"}
                 </button>
               </div>
+              {registrationPrompt && <small className="account-auth-warning" role="alert">{registrationPrompt}</small>}
+              {authMessage && <small className="account-auth-message" role="status">{authMessage}</small>}
             </form>
           )}
           {!authConfigured && <small>Registro preparado · falta conectar el servicio de email.</small>}
-          {authMessage && <small role="status">{authMessage}</small>}
-        </section>
-
-        <div className={`trial-strip ${proCandidate ? "pro-mode-strip" : ""}`} aria-label="Beneficios del plan">
-          <div>
-            <span>{proCandidate ? "VIDEO PRO ACTIVO" : "PLAN GRATIS"}</span>
-            <strong>{proCandidate ? "2K, 4K y máxima calidad habilitadas" : freeQuotaCopy}</strong>
+          <div className={`account-plan-summary ${proCandidate ? "pro-mode-strip" : ""}`} aria-label="Beneficios del plan">
+            <div>
+              <span>{proCandidate ? "VIDEO PRO ACTIVO" : "PLAN GRATIS"}</span>
+              <strong>{proCandidate ? "2K, 4K y máxima calidad habilitadas" : freeQuotaCopy}</strong>
+            </div>
+            <a href={account?.authenticated ? "#planes" : "#cuenta"}>{proCandidate ? "Ver tu plan" : account?.authenticated ? "Ver planes" : "Ingresar"}</a>
           </div>
-          <a href={account?.authenticated ? "#planes" : "#cuenta"}>{proCandidate ? "Ver tu plan" : account?.authenticated ? "Ver planes" : "Ingresar"}</a>
-        </div>
+        </section>
 
         {proCandidate && <p className="pro-preview-note" role="status">Video Pro activo · sin anuncios · procesamiento prioritario</p>}
 
