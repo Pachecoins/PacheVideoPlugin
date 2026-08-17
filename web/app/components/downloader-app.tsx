@@ -492,7 +492,7 @@ export default function DownloaderApp() {
     : "1 video de prueba + 5 videos gratis al registrarte";
 
   return (
-    <main className="site-shell">
+    <main className={`site-shell ${proCandidate ? "pro-active" : ""}`}>
       <nav className="topbar" aria-label="Navegación principal">
         <Link className="brand" href="/" prefetch={false} aria-label="PacheVideo, volver al inicio">
           <img className="brand-logo" src="/logo.png" alt="" />
@@ -514,7 +514,7 @@ export default function DownloaderApp() {
           Sin instalar nada y desde cualquier dispositivo.
         </p>
 
-        <section className={`account-panel ${account?.authenticated ? "signed-in" : ""}`} id="cuenta" aria-labelledby="account-title">
+        <section className={`account-panel ${account?.authenticated ? "signed-in" : ""} ${proCandidate ? "pro-account" : ""}`} id="cuenta" aria-labelledby="account-title">
           <div>
             <span className="account-kicker">TU CUENTA</span>
             <h2 id="account-title">{account === null
@@ -522,6 +522,7 @@ export default function DownloaderApp() {
               : account.authenticated
                 ? `Hola, ${account.email}`
                 : "Ingresá con tu email"}</h2>
+            {proCandidate && <span className="pro-badge">VIDEO PRO · ACTIVO</span>}
             <p>{account === null
               ? "Estamos comprobando si ya habías iniciado sesión en este dispositivo."
               : account.authenticated
@@ -669,7 +670,7 @@ export default function DownloaderApp() {
             </label>
           </div>
 
-          <div className="pro-unlock">
+          <div className={`pro-unlock ${proCandidate ? "pro-unlock-active" : ""}`}>
             <div>
               <strong>{proCandidate ? "Video Pro activo" : "Video Pro"}</strong>
               <span>{proCandidate ? "Máxima velocidad, calidad y listas de hasta 20 enlaces habilitadas." : "2K, 4K, máxima calidad, listas de enlaces y procesamiento prioritario."}</span>
