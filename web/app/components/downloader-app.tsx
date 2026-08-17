@@ -5,7 +5,6 @@ import Link from "next/link";
 import { authIsConfigured, getSupabaseBrowserClient } from "../lib/supabase-browser";
 
 type Mode = "video" | "audio";
-type AuthMode = "signin" | "signup";
 type DownloadKind = "single" | "batch";
 type Job = {
   id: string;
@@ -83,9 +82,11 @@ export default function DownloaderApp() {
   const [formError, setFormError] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
-  const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [authMessage, setAuthMessage] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  const [giftCode, setGiftCode] = useState("");
+  const [giftMessage, setGiftMessage] = useState("");
+  const [giftBusy, setGiftBusy] = useState(false);
   const [startingDownload, setStartingDownload] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -142,13 +143,11 @@ export default function DownloaderApp() {
     };
   }, [loadAccount]);
 
-  // Links from the landing page intentionally land on the real signup form,
-  // not merely on the app screen. This also preserves a normal sign-in path
-  // for returning users.
+  // Links from the public site focus the only access field: the same email
+  // flow creates a new account or restores an existing one.
   useEffect(() => {
     const intent = new URLSearchParams(window.location.search).get("auth");
     if (intent !== "signup") return;
-    setAuthMode("signup");
     window.setTimeout(() => {
       document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
       document.querySelector<HTMLInputElement>("#account-email")?.focus();
@@ -410,7 +409,7 @@ export default function DownloaderApp() {
       auth.auth.signInWithOtp({
         email: loginEmail.trim(),
         options: {
-          shouldCreateUser: authMode === "signup",
+          shouldCreateUser: true,
           emailRedirectTo: `${window.location.origin}/app`,
         },
       }).then(({ error }) => ({ error, timedOut: false })),
@@ -423,12 +422,33 @@ export default function DownloaderApp() {
     setAuthMessage(result.timedOut
       ? "El correo está demorando más de lo normal. Revisá que SMTP esté guardado en Supabase y probá de nuevo."
       : result.error
-      ? authMode === "signin"
-        ? "No encontramos esa cuenta o no pudimos enviar el enlace. Revisá el email."
-        : "No pudimos crear la cuenta. Revisá el email."
-      : authMode === "signin"
-        ? "Te enviamos un enlace para volver a entrar. Revisá tu correo."
-        : "Te enviamos un enlace para confirmar tu cuenta. Revisá tu correo.");
+      ? "No pudimos enviar el enlace. Revisá el email e intentá otra vez."
+      : "Te enviamos un enlace de acceso. Revisá tu correo.");
+  }
+
+  async function redeemGiftCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) return;
+    setGiftBusy(true);
+    setGiftMessage("");
+    try {
+      const response = await fetch("/api/gifts/redeem", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ code: giftCode }),
+      });
+      const updated = (await readJson(response)) as Account;
+      setAccount(updated);
+      setGiftCode("");
+      setGiftMessage("Código aplicado: Video Pro queda activo sin vencimiento.");
+    } catch (error) {
+      setGiftMessage(error instanceof Error ? error.message : "No pudimos aplicar el código.");
+    } finally {
+      setGiftBusy(false);
+    }
   }
 
   async function signOut() {
@@ -496,41 +516,39 @@ export default function DownloaderApp() {
               ? "Recuperando tu sesión…"
               : account.authenticated
                 ? `Hola, ${account.email}`
-                : authMode === "signin"
-                  ? "Volvé a entrar a tu cuenta"
-                  : "Registrate gratis y descargá 5 videos"}</h2>
+                : "Ingresá con tu email"}</h2>
             <p>{account === null
               ? "Estamos comprobando si ya habías iniciado sesión en este dispositivo."
               : account.authenticated
                 ? account.plan === "pro"
                   ? "Video Pro está vinculado a tu email y funciona en todos tus dispositivos."
                   : `${account.freeVideosRemaining} de ${account.freeVideoLimit} videos gratis disponibles hasta 1080p.`
-                : authMode === "signin"
-                  ? "Usá el mismo email de tu cuenta para conservar tu plan y tus descargas disponibles."
-                  : "Hasta 1080p, sin tarjeta. Tu cuenta nueva recibe 5 videos gratis."}</p>
+                : "Si es tu primera vez, recibís 5 videos gratis. Si ya tenés cuenta, recuperás tu plan."}</p>
           </div>
           {account === null ? (
             <div className="session-loading" role="status" aria-live="polite">
               <i aria-hidden="true" /> Comprobando cuenta
             </div>
           ) : account.authenticated ? (
-            <button className="account-secondary" type="button" onClick={() => void signOut()}>Cerrar sesión</button>
+            <div className="account-signed-actions">
+              {!proCandidate && (
+                <form className="gift-form" onSubmit={redeemGiftCode}>
+                  <input
+                    aria-label="Código de regalo Video Pro"
+                    placeholder="Código de regalo"
+                    value={giftCode}
+                    onChange={(event) => setGiftCode(event.target.value)}
+                    disabled={giftBusy}
+                    required
+                  />
+                  <button type="submit" disabled={giftBusy}>{giftBusy ? "Aplicando…" : "Canjear"}</button>
+                </form>
+              )}
+              <button className="account-secondary" type="button" onClick={() => void signOut()}>Cerrar sesión</button>
+              {giftMessage && <small role="status">{giftMessage}</small>}
+            </div>
           ) : (
             <form className="account-form" onSubmit={requestAccessLink}>
-              <div className="account-auth-tabs" aria-label="Acceso a la cuenta">
-                <button
-                  className={authMode === "signin" ? "active" : ""}
-                  type="button"
-                  aria-pressed={authMode === "signin"}
-                  onClick={() => { setAuthMode("signin"); setAuthMessage(""); }}
-                >Iniciar sesión</button>
-                <button
-                  className={authMode === "signup" ? "active" : ""}
-                  type="button"
-                  aria-pressed={authMode === "signup"}
-                  onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}
-                >Crear cuenta</button>
-              </div>
               <label className="account-email-label" htmlFor="account-email">Email</label>
               <div className="account-form-row">
                 <input
@@ -544,7 +562,7 @@ export default function DownloaderApp() {
                   required
                 />
                 <button type="submit" disabled={authBusy || !authConfigured}>
-                  {authBusy ? "Enviando…" : authMode === "signin" ? "Enviar enlace de acceso" : "Crear cuenta gratis"}
+                  {authBusy ? "Enviando…" : "Continuar"}
                 </button>
               </div>
             </form>
@@ -558,7 +576,7 @@ export default function DownloaderApp() {
             <span>{proCandidate ? "VIDEO PRO ACTIVO" : "PLAN GRATIS"}</span>
             <strong>{proCandidate ? "2K, 4K y máxima calidad habilitadas" : freeQuotaCopy}</strong>
           </div>
-          <a href={account?.authenticated ? "#planes" : "#cuenta"}>{proCandidate ? "Ver tu plan" : account?.authenticated ? "Ver planes" : "Registrarme"}</a>
+          <a href={account?.authenticated ? "#planes" : "#cuenta"}>{proCandidate ? "Ver tu plan" : account?.authenticated ? "Ver planes" : "Ingresar"}</a>
         </div>
 
         {proCandidate && <p className="pro-preview-note" role="status">Video Pro activo · sin anuncios · procesamiento prioritario</p>}
@@ -787,7 +805,7 @@ export default function DownloaderApp() {
               </ul>
               {account?.authenticated
                 ? <span className="plan-status">{proCandidate ? "Incluido antes de pasar a Pro" : `${account.freeVideosRemaining} de ${account.freeVideoLimit} disponibles`}</span>
-                : <a className="plan-status" href="#cuenta">Crear cuenta gratis</a>}
+                : <a className="plan-status" href="#cuenta">Ingresar o crear cuenta</a>}
             </article>
 
             <article className="plan-card featured">

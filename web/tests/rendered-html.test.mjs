@@ -65,10 +65,11 @@ test("downloader recovers automatically without a manual retry control", async (
   assert.match(await readFile(new URL("../app/api/billing/subscription/route.ts", import.meta.url), "utf8"), /new URL\("\/app", request\.url\)/);
   assert.match(source, /account\.plan === "pro"/);
   assert.match(source, /signInWithOtp/);
-  assert.match(source, /type AuthMode = "signin" \| "signup"/);
-  assert.match(source, /shouldCreateUser: authMode === "signup"/);
-  assert.match(source, /Iniciar sesión/);
-  assert.match(source, /Enviar enlace de acceso/);
+  assert.match(source, /shouldCreateUser: true/);
+  assert.match(source, /Ingresá con tu email/);
+  assert.match(source, /Continuar/);
+  assert.match(source, /\/api\/gifts\/redeem/);
+  assert.match(await readFile(new URL("../app/api/gifts/redeem/route.ts", import.meta.url), "utf8"), /\/api\/gifts\/redeem/);
   assert.match(source, /Recuperando tu sesión/);
   assert.match(authSource, /flowType: "implicit"/);
   assert.match(authSource, /persistSession: true/);

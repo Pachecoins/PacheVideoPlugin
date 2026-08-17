@@ -677,6 +677,45 @@ class BillingSessionTests(unittest.TestCase):
         self.assertEqual(first["email"], "cliente@example.com")
         self.assertEqual(first["plan"], "free")
 
+    def test_launch_gift_code_grants_permanent_pro_once(self) -> None:
+        request = backend.Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/gifts/redeem",
+                "headers": [(b"authorization", b"Bearer gift-token")],
+            }
+        )
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(
+                    backend,
+                    "supabase_user_from_request",
+                    return_value={"id": "gift-recipient", "email": "regalo@example.com"},
+                ),
+            ):
+                backend.initialize_database()
+                redeemed = backend.redeem_gift_code(
+                    backend.RedeemGiftCode(code="PV-GIFT-66A07F2701"), request
+                )
+                with self.assertRaises(backend.HTTPException) as repeated:
+                    backend.redeem_gift_code(
+                        backend.RedeemGiftCode(code="PV-GIFT-66A07F2701"), request
+                    )
+                with backend.database() as connection:
+                    account = connection.execute(
+                        "SELECT plan, pro_gift FROM accounts WHERE auth_provider_id = 'gift-recipient'"
+                    ).fetchone()
+
+        self.assertEqual(redeemed["plan"], "pro")
+        self.assertEqual(account["plan"], "pro")
+        self.assertEqual(account["pro_gift"], 1)
+        self.assertEqual(repeated.exception.status_code, 409)
+
 
 if __name__ == "__main__":
     unittest.main()

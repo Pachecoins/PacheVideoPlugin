@@ -67,6 +67,20 @@ MP_SUBSCRIPTION_CURRENCY = os.getenv("PACHEVIDEO_MP_SUBSCRIPTION_CURRENCY", "ARS
 SUPABASE_URL = os.getenv("PACHEVIDEO_SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("PACHEVIDEO_SUPABASE_ANON_KEY", "").strip()
 
+# One-use launch gifts. Only hashes are kept in the repository and database.
+LAUNCH_GIFT_CODE_HASHES = (
+    "575f2d166b434f83298d3873f25f77863af086427bb6b01d65ca8ae502383ddf",
+    "5b19e2628450634b698ce117dee53ae15ab85672a11ca38312a8b37265540af3",
+    "2125b2e5923e24875402760f40fe3e375a10137cc26c03ac35018fe5d343786f",
+    "74b34e3133d881fbb0186642852a3a02caa265ae1df02af10595895f62d0419d",
+    "076b86485465540e1fe55c3cafdab967288b377f6c3e53b26f6cf4c9ca143421",
+    "c6a55b4cba5baca2bf5d6b6f0dca200a8f6df0d6d1b99141400278f8053740b0",
+    "c164551e54e6b9f0d1d30eb61cc74ca08cbf1d07d0d265259c088f7c2bb096a6",
+    "adf021a43e2666df71f9c3965ab3aa6e3762ad851d3783bb1431e134588699ba",
+    "9576201c4392a5e5a251f2e470fd438acfc5d28b2da5ae79e5ab79d690ed190b",
+    "18048e761fca467d16e9339510a13fadb85ed720f6aa679d0a26150dcc630103",
+)
+
 FREE_VIDEO_QUALITIES = {"480", "720", "1080"}
 ANONYMOUS_FREE_VIDEO_LIMIT = 1
 REGISTERED_FREE_VIDEO_LIMIT = 5
@@ -132,6 +146,10 @@ class StartSubscription(BaseModel):
     returnUrl: HttpUrl | None = None
 
 
+class RedeemGiftCode(BaseModel):
+    code: str
+
+
 @contextmanager
 def database():
     connection = sqlite3.connect(DB_PATH, timeout=30)
@@ -194,6 +212,7 @@ def initialize_database() -> None:
             CREATE TABLE IF NOT EXISTS accounts (
                 id TEXT PRIMARY KEY,
                 plan TEXT NOT NULL DEFAULT 'free',
+                pro_gift INTEGER NOT NULL DEFAULT 0,
                 free_video_uses INTEGER NOT NULL DEFAULT 0,
                 created_at REAL NOT NULL,
                 updated_at REAL NOT NULL
@@ -206,6 +225,7 @@ def initialize_database() -> None:
         account_migrations = {
             "auth_provider_id": "ALTER TABLE accounts ADD COLUMN auth_provider_id TEXT",
             "email": "ALTER TABLE accounts ADD COLUMN email TEXT",
+            "pro_gift": "ALTER TABLE accounts ADD COLUMN pro_gift INTEGER NOT NULL DEFAULT 0",
         }
         for column, statement in account_migrations.items():
             if column not in account_columns:
@@ -220,6 +240,20 @@ def initialize_database() -> None:
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )
             """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gift_codes (
+                code_hash TEXT PRIMARY KEY,
+                redeemed_at REAL,
+                redeemed_by_account_id TEXT,
+                FOREIGN KEY (redeemed_by_account_id) REFERENCES accounts(id)
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT OR IGNORE INTO gift_codes (code_hash) VALUES (?)",
+            ((value,) for value in LAUNCH_GIFT_CODE_HASHES),
         )
         connection.execute(
             """
@@ -454,6 +488,10 @@ def free_video_limit(account: sqlite3.Row) -> int:
     return REGISTERED_FREE_VIDEO_LIMIT if account["auth_provider_id"] else ANONYMOUS_FREE_VIDEO_LIMIT
 
 
+def effective_plan(account: sqlite3.Row) -> Literal["free", "pro"]:
+    return "pro" if account["plan"] == "pro" or bool(account["pro_gift"]) else "free"
+
+
 def account_public(account: sqlite3.Row) -> dict[str, object]:
     video_limit = free_video_limit(account)
     video_uses = int(account["free_video_uses"])
@@ -463,7 +501,7 @@ def account_public(account: sqlite3.Row) -> dict[str, object]:
             (account["id"],),
         ).fetchone()
     return {
-        "plan": account["plan"],
+        "plan": effective_plan(account),
         "freeVideoUsed": video_uses >= video_limit,
         "freeVideoUses": video_uses,
         "freeVideoLimit": video_limit,
@@ -991,7 +1029,7 @@ def account(request: Request) -> JSONResponse:
 def start_subscription(payload: StartSubscription, request: Request) -> dict[str, object]:
     current = require_registered_account(request)
     email = str(current["email"] or "").strip().lower()
-    if current["plan"] == "pro":
+    if effective_plan(current) == "pro":
         raise HTTPException(status_code=409, detail="Esta cuenta ya tiene Video Pro activo")
     if not MP_ACCESS_TOKEN:
         raise HTTPException(status_code=503, detail="Falta conectar la credencial privada de Mercado Pago")
@@ -1071,10 +1109,51 @@ async def mercado_pago_webhook(request: Request) -> dict[str, bool]:
             (status, now, provider_id),
         )
         connection.execute(
-            "UPDATE accounts SET plan = ?, updated_at = ? WHERE id = ?",
+            """
+            UPDATE accounts
+            SET plan = CASE WHEN pro_gift = 1 THEN 'pro' ELSE ? END,
+                updated_at = ?
+            WHERE id = ?
+            """,
             (plan, now, known["account_id"]),
         )
     return {"ok": True}
+
+
+@app.post("/api/gifts/redeem")
+def redeem_gift_code(payload: RedeemGiftCode, request: Request) -> dict[str, object]:
+    """Redeem a launch gift exactly once for the signed-in recipient."""
+    current = require_registered_account(request)
+    code = payload.code.strip().upper().replace(" ", "")
+    if not code.startswith("PV-GIFT-") or len(code) > 80:
+        raise HTTPException(status_code=400, detail="El código de regalo no es válido")
+    code_hash = sha256(code.encode()).hexdigest()
+    now = time.time()
+    with database() as connection:
+        gift = connection.execute(
+            "SELECT redeemed_by_account_id FROM gift_codes WHERE code_hash = ?",
+            (code_hash,),
+        ).fetchone()
+        if not gift:
+            raise HTTPException(status_code=404, detail="El código de regalo no existe")
+        if gift["redeemed_by_account_id"]:
+            raise HTTPException(status_code=409, detail="Este código de regalo ya fue usado")
+        claimed = connection.execute(
+            """
+            UPDATE gift_codes
+            SET redeemed_at = ?, redeemed_by_account_id = ?
+            WHERE code_hash = ? AND redeemed_by_account_id IS NULL
+            """,
+            (now, current["id"], code_hash),
+        ).rowcount
+        if not claimed:
+            raise HTTPException(status_code=409, detail="Este código de regalo ya fue usado")
+        connection.execute(
+            "UPDATE accounts SET plan = 'pro', pro_gift = 1, updated_at = ? WHERE id = ?",
+            (now, current["id"]),
+        )
+        updated = connection.execute("SELECT * FROM accounts WHERE id = ?", (current["id"],)).fetchone()
+    return account_public(updated)
 
 
 def validate_request_identity(request_id: str | None, request_token: str | None) -> None:
@@ -1188,7 +1267,7 @@ def create_job(payload: CreateJob, request: Request) -> dict[str, object]:
     consume_rate_limit(str(client))
     account = require_account(request)
     enforce_active_job_capacity()
-    plan: Literal["free", "pro"] = "pro" if account["plan"] == "pro" else "free"
+    plan = effective_plan(account)
     validate_request_identity(payload.requestId, payload.requestToken)
     return enqueue_job(
         payload,
@@ -1205,7 +1284,7 @@ def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
     client = request.headers.get("cf-connecting-ip") or request.client.host if request.client else "unknown"
     consume_rate_limit(str(client))
     account = require_account(request)
-    if account["plan"] != "pro":
+    if effective_plan(account) != "pro":
         raise HTTPException(status_code=403, detail="Las listas de enlaces son una función de Video Pro")
     validate_request_identity(payload.requestId, payload.requestToken)
     urls = list(dict.fromkeys(str(item) for item in payload.urls))

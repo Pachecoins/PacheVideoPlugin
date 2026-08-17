@@ -51,6 +51,12 @@ a, summary { cursor: pointer; }
 .account-panel p { margin: 5px 0 0; color: #8f8795; font-size: 11px; line-height: 1.45; }
 .account-panel > small { grid-column: 1 / -1; color: #9a83aa; font-size: 10px; }
 .account-form { width: min(390px, 100%); display: flex; flex-direction: column; gap: 7px; }
+.account-signed-actions { width: min(390px, 100%); display: flex; flex-direction: column; gap: 7px; }
+.account-signed-actions small { color: #bfc5be; font-size: 10px; line-height: 1.35; }
+.gift-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.gift-form input { min-height: 44px; padding: 11px 12px; }
+.gift-form button { min-height: 44px; padding: 0 14px; color: #f1dcff; border: 1px solid rgba(198,105,252,.3); border-radius: 11px; background: rgba(161,58,222,.13); font-size: 11px; font-weight: 800; }
+.gift-form button:disabled { cursor: not-allowed; opacity: .5; }
 .account-auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(5,4,7,.45); }
 .account-auth-tabs button { min-height: 38px; padding: 0 10px; color: #958b9c; border: 0; border-radius: 9px; background: transparent; font-size: 11px; font-weight: 800; }
 .account-auth-tabs button.active { color: #fff; background: linear-gradient(135deg, rgba(174,68,234,.82), rgba(117,45,190,.82)); box-shadow: 0 5px 16px rgba(125,45,185,.2); }
@@ -320,9 +326,11 @@ button.plan-status { cursor: pointer; }
   .trial-strip a { width: 100%; }
   .account-panel { grid-template-columns: 1fr; }
   .account-form { width: 100%; }
+  .account-signed-actions { width: 100%; }
   .account-form-row { grid-template-columns: 1fr; }
+  .gift-form { grid-template-columns: 1fr; }
   .account-auth-tabs button { min-height: 44px; }
-  .account-form button, .account-secondary { width: 100%; }
+  .account-form button, .account-secondary, .gift-form button { width: 100%; }
   .plans-section { margin-top: 56px; }
   .plans-grid { grid-template-columns: 1fr; }
   .plan-card ul { min-height: auto; }
