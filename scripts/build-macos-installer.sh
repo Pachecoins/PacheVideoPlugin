@@ -178,4 +178,6 @@ if [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:
 fi
 
 shasum -a 256 "$FINAL_PKG" >"$FINAL_PKG.sha256"
+cp "$ROOT/scripts/PacheVideo-Install-macOS.command" "$DIST/PacheVideo-Install-macOS.command"
+chmod +x "$DIST/PacheVideo-Install-macOS.command"
 echo "Instalador generado: $FINAL_PKG"

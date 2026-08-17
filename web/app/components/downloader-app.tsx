@@ -601,7 +601,7 @@ export default function DownloaderApp() {
         {desktopMenuOpen && (
           <div className="desktop-download-menu" role="menu">
             <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.3.1/PacheVideo-Setup-Windows-x64.exe">Windows <small>Instalador .exe</small></a>
-            <span className="desktop-download-pending" role="status">Mac <small>Instalador normal en preparación</small></span>
+            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.1/PacheVideo-Install-macOS.command">Mac <small>Instalador por Terminal</small></a>
           </div>
         )}
       </section>

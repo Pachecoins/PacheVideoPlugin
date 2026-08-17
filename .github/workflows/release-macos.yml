@@ -76,6 +76,7 @@ jobs:
           path: |
             dist/PacheVideo-macOS-${{ matrix.arch }}.pkg
             dist/PacheVideo-macOS-${{ matrix.arch }}.pkg.sha256
+            dist/PacheVideo-Install-macOS.command
           if-no-files-found: error
 
   release:
