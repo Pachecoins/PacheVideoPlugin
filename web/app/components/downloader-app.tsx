@@ -90,7 +90,7 @@ function NetworkIcon({ network }: { network: HistoryItem["network"] }) {
 }
 
 function networkLabel(network: HistoryItem["network"]) {
-  return { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", youtube: "YouTube", web: "Web" }[network];
+  return { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", youtube: "Video", web: "Web" }[network];
 }
 
 export default function DownloaderApp() {
@@ -593,6 +593,17 @@ export default function DownloaderApp() {
         </div>
       </nav>
 
+      <a
+        className="desktop-promo"
+        href="https://github.com/Pachecoins/PacheVideoPlugin/releases"
+        target="_blank"
+        rel="noreferrer"
+      >
+        <span className="desktop-promo-icon" aria-hidden="true">↧</span>
+        <span><b>PacheVideo Desktop Pro</b><small>Instalá la app para máximo rendimiento en tus descargas.</small></span>
+        <strong>Descargar app <i aria-hidden="true">→</i></strong>
+      </a>
+
       <section className="app-hero" id="inicio">
         <div className="eyebrow">TU VIDEO, LISTO EN SEGUNDOS</div>
         <h1>Descargá. Convertí.<br /><span>Seguí creando.</span></h1>
@@ -709,7 +720,7 @@ export default function DownloaderApp() {
                   id="batch-urls"
                   inputMode="url"
                   autoComplete="off"
-                  placeholder={"https://youtube.com/...\nhttps://instagram.com/...\nhttps://facebook.com/..."}
+                  placeholder={"https://sitio-ejemplo.com/video\nhttps://instagram.com/...\nhttps://facebook.com/..."}
                   value={batchUrls}
                   onChange={(event) => setBatchUrls(event.target.value)}
                   disabled={busy}
@@ -717,7 +728,7 @@ export default function DownloaderApp() {
                 />
                 <button className="paste-button" type="button" onClick={pasteUrl} disabled={busy}>Pegar</button>
               </div>
-              <p>Hasta 20 enlaces, uno por línea. Podés mezclar YouTube, Instagram, Facebook y otras fuentes compatibles.</p>
+              <p>Hasta 20 enlaces, uno por línea. Podés mezclar enlaces de redes y otras fuentes compatibles.</p>
             </div>
           ) : (
             <>
