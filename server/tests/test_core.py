@@ -82,6 +82,14 @@ class SecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "red no permitida"):
             validate_public_url("https://example.com/video")
 
+    @patch("server.app.main.socket.getaddrinfo")
+    def test_ssrf_validation_uses_http_default_port(self, getaddrinfo) -> None:
+        getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 80))
+        ]
+        validate_public_url("http://example.com/video")
+        self.assertEqual(getaddrinfo.call_args.args[1], 80)
+
     def test_format_selector_has_direct_fallback(self) -> None:
         self.assertTrue(format_selector("video", "1080").endswith("/best"))
         self.assertIn("bestaudio[ext=webm]", format_selector("video", "1080"))

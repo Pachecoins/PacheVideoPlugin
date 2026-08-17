@@ -355,7 +355,8 @@ def validate_public_url(raw_url: str) -> None:
     if ALLOWED_HOSTS and not any(host == allowed or host.endswith(f".{allowed}") for allowed in ALLOWED_HOSTS):
         raise ValueError("Esta fuente todavía no está habilitada")
     try:
-        addresses = {item[4][0] for item in socket.getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)}
+        default_port = 443 if parsed.scheme == "https" else 80
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, parsed.port or default_port, type=socket.SOCK_STREAM)}
     except socket.gaierror as error:
         raise ValueError("No se pudo resolver el dominio") from error
     for address in addresses:
