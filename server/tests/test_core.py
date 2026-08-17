@@ -10,6 +10,7 @@ from unittest.mock import patch
 from server.app import main as backend
 from server.app.main import (
     compatibility_selector,
+    download_error_category,
     enforce_plan_limits,
     ensure_mobile_compatible_mp4,
     format_selector,
@@ -114,9 +115,59 @@ class SecurityTests(unittest.TestCase):
         self.assertTrue(is_retryable_download_error(yt_dlp.utils.DownloadError("HTTP Error 503")))
         self.assertFalse(is_retryable_download_error(yt_dlp.utils.DownloadError("Private video")))
         self.assertFalse(is_retryable_download_error(yt_dlp.utils.DownloadError("Sign in to confirm you're not a bot")))
-        self.assertIn("verificación", backend.public_download_error(
+        self.assertIn("disponible", backend.public_download_error(
             yt_dlp.utils.DownloadError("Sign in to confirm you're not a bot")
         ))
+
+    def test_download_errors_use_closed_public_catalog(self) -> None:
+        cases = {
+            "Unsupported URL: https://extractor.example/internal": "fuente_no_soportada",
+            "Private video requires login": "contenido_privado",
+            "Video unavailable": "contenido_no_disponible",
+            "File is larger than max filesize": "limite_de_tamano",
+            "El contenido supera el límite de 60 minutos": "limite_de_duracion",
+            "HTTP Error 503: https://cdn.internal.example/file": "error_temporal",
+            "Extractor /srv/private failed": "error_desconocido",
+        }
+        for raw, category in cases.items():
+            error = yt_dlp.utils.DownloadError(raw)
+            public = backend.public_download_error(error)
+            self.assertEqual(download_error_category(error), category)
+            self.assertEqual(public, backend.DOWNLOAD_ERROR_MESSAGES[category])
+            self.assertNotIn("https://", public)
+            self.assertNotIn("/srv/", public)
+
+    def test_public_job_never_returns_stored_provider_diagnostic(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+            ):
+                backend.initialize_database()
+                with backend.database() as connection:
+                    connection.execute(
+                        """
+                        INSERT INTO jobs (
+                            id, source_url, mode, quality, audio_kbps, status, progress, message, detail,
+                            token_hash, error, created_at, expires_at
+                        ) VALUES (?, ?, 'video', '1080', '320', 'error', 0, ?, ?, ?, ?, 0, 9999999999)
+                        """,
+                        (
+                            "private-error",
+                            "https://example.com/video",
+                            "No pudimos preparar el archivo",
+                            backend.DOWNLOAD_ERROR_MESSAGES["error_desconocido"],
+                            "token",
+                            "yt-dlp /srv/pachevideo/jobs/secret https://cdn.internal.example/file",
+                        ),
+                    )
+                public = backend.public_job(backend.get_job("private-error"))
+
+        self.assertEqual(public["error"], backend.DOWNLOAD_ERROR_MESSAGES["error_desconocido"])
+        self.assertNotIn("/srv/", str(public))
+        self.assertNotIn("cdn.internal", str(public))
 
     def test_retry_delay_uses_exponential_backoff(self) -> None:
         with (

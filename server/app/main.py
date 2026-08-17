@@ -311,7 +311,9 @@ def public_job(row: sqlite3.Row, token: str | None = None) -> dict[str, object]:
         "message": "Preparando tu archivo…" if retrying else row["message"],
         "detail": "" if retrying else row["detail"],
         "fileName": row["file_name"],
-        "error": row["error"],
+        # `error` stores provider diagnostics for operators. Never expose it to
+        # a browser: extractor output can contain internal URLs and file paths.
+        "error": row["detail"] if row["status"] == "error" else None,
         "attempt": None if retrying else row["attempt"],
         "maxAttempts": None if retrying else row["max_attempts"],
         "plan": row["plan"],
@@ -607,19 +609,37 @@ def is_retryable_download_error(error: Exception) -> bool:
     )
 
 
-def public_download_error(error: Exception) -> str:
-    """Keep upstream diagnostics useful without exposing a raw provider error."""
+DOWNLOAD_ERROR_MESSAGES = {
+    "fuente_no_soportada": "Esta fuente todavía no es compatible con PacheVideo.",
+    "contenido_privado": "El contenido requiere acceso privado y no se puede preparar desde PacheVideo.",
+    "contenido_no_disponible": "Este contenido ya no está disponible o no se puede acceder públicamente.",
+    "limite_de_tamano": "El archivo supera el tamaño máximo permitido.",
+    "limite_de_duracion": "El contenido supera la duración máxima permitida.",
+    "error_temporal": "No pudimos preparar el archivo ahora. Probá nuevamente más tarde.",
+    "error_desconocido": "No pudimos preparar este archivo. Probá con otra fuente compatible.",
+}
+
+
+def download_error_category(error: Exception) -> str:
+    """Classify provider errors without returning provider diagnostics to clients."""
     message = str(error).lower()
-    if "not a bot" in message:
-        return (
-            "Esta fuente pidió una verificación que no se puede completar desde el servidor. "
-            "Probá otro enlace público compatible o usá el archivo original."
-        )
-    if "private video" in message or "login required" in message:
-        return "El contenido requiere acceso privado y no se puede preparar desde PacheVideo."
-    if "copyright" in message:
-        return "Esta fuente no permite preparar este contenido."
-    return "No pudimos preparar este archivo. Probá nuevamente más tarde o con otra fuente compatible."
+    if any(marker in message for marker in ("unsupported url", "no suitable extractor", "unsupported site")):
+        return "fuente_no_soportada"
+    if any(marker in message for marker in ("private video", "private content", "login required", "sign in to confirm your age")):
+        return "contenido_privado"
+    if any(marker in message for marker in ("video unavailable", "content unavailable", "deleted", "not a bot", "copyright")):
+        return "contenido_no_disponible"
+    if any(marker in message for marker in ("max filesize", "max_filesize", "file is larger", "file too large")):
+        return "limite_de_tamano"
+    if any(marker in message for marker in ("supera el límite", "maximum duration", "duration limit")):
+        return "limite_de_duracion"
+    if any(marker in message for marker in TRANSIENT_ERROR_MARKERS):
+        return "error_temporal"
+    return "error_desconocido"
+
+
+def public_download_error(error: Exception) -> str:
+    return DOWNLOAD_ERROR_MESSAGES[download_error_category(error)]
 
 
 def retry_delay_seconds(attempt: int) -> float:
@@ -905,7 +925,7 @@ def run_download(
             status="error",
             message="No pudimos preparar el archivo",
             detail=public_download_error(error),
-            error=public_download_error(error),
+            error=str(error),
             expires_at=time.time() + JOB_TTL_SECONDS,
         )
 
