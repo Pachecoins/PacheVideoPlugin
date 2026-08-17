@@ -48,6 +48,7 @@ ALLOWED_ORIGINS = [
 MAX_FILE_BYTES = int(os.getenv("PACHEVIDEO_MAX_FILE_BYTES", str(2 * 1024**3)))
 MAX_DURATION_SECONDS = int(os.getenv("PACHEVIDEO_MAX_DURATION_SECONDS", "10800"))
 JOB_TTL_SECONDS = int(os.getenv("PACHEVIDEO_JOB_TTL_SECONDS", "3600"))
+HISTORY_TTL_SECONDS = int(os.getenv("PACHEVIDEO_HISTORY_TTL_SECONDS", str(60 * 60 * 24 * 90)))
 WORKERS = max(1, int(os.getenv("PACHEVIDEO_WORKERS", "2")))
 RATE_LIMIT_PER_MINUTE = max(1, int(os.getenv("PACHEVIDEO_RATE_LIMIT_PER_MINUTE", "8")))
 MAX_ACTIVE_JOBS = max(1, int(os.getenv("PACHEVIDEO_MAX_ACTIVE_JOBS", "40")))
@@ -182,6 +183,7 @@ def initialize_database() -> None:
                 detail TEXT NOT NULL DEFAULT '',
                 file_path TEXT,
                 file_name TEXT,
+                thumbnail_url TEXT,
                 token_hash TEXT NOT NULL,
                 error TEXT,
                 attempt INTEGER NOT NULL DEFAULT 0,
@@ -203,6 +205,7 @@ def initialize_database() -> None:
             "plan": "ALTER TABLE jobs ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'",
             "account_id": "ALTER TABLE jobs ADD COLUMN account_id TEXT",
             "request_id": "ALTER TABLE jobs ADD COLUMN request_id TEXT",
+            "thumbnail_url": "ALTER TABLE jobs ADD COLUMN thumbnail_url TEXT",
         }
         for column, statement in migrations.items():
             if column not in existing_columns:
@@ -319,6 +322,25 @@ def public_job(row: sqlite3.Row, token: str | None = None) -> dict[str, object]:
         path = f"/api/jobs/{row['id']}/download?token={token}"
         result["downloadUrl"] = f"{base}{path}" if base else path
     return result
+
+
+def source_network(raw_url: str) -> str:
+    host = (urlparse(raw_url).hostname or "").lower()
+    if host == "youtu.be" or host.endswith("youtube.com"):
+        return "youtube"
+    if host.endswith("instagram.com"):
+        return "instagram"
+    if host.endswith("tiktok.com"):
+        return "tiktok"
+    if host.endswith("facebook.com") or host.endswith("fb.watch"):
+        return "facebook"
+    return "web"
+
+
+def public_thumbnail(value: object) -> str | None:
+    url = str(value or "").strip()
+    parsed = urlparse(url)
+    return url if parsed.scheme == "https" and parsed.hostname else None
 
 
 def validate_public_url(raw_url: str) -> None:
@@ -861,6 +883,7 @@ def run_download(
             detail=str(info.get("title") or output.name),
             file_path=str(output),
             file_name=output.name,
+            thumbnail_url=public_thumbnail(info.get("thumbnail")),
             attempt=attempt,
             expires_at=time.time() + JOB_TTL_SECONDS,
         )
@@ -923,12 +946,16 @@ def cleanup_expired() -> None:
         now = time.time()
         with database() as connection:
             rows = connection.execute(
-                "SELECT id FROM jobs WHERE expires_at < ? AND status IN ('complete', 'error')",
+                "SELECT id FROM jobs WHERE expires_at < ? AND status IN ('complete', 'error') AND file_path IS NOT NULL",
                 (now,),
             ).fetchall()
             connection.execute(
-                "DELETE FROM jobs WHERE expires_at < ? AND status IN ('complete', 'error')",
+                "UPDATE jobs SET file_path = NULL WHERE expires_at < ? AND status IN ('complete', 'error')",
                 (now,),
+            )
+            connection.execute(
+                "DELETE FROM jobs WHERE created_at < ? AND status IN ('complete', 'error')",
+                (now - HISTORY_TTL_SECONDS,),
             )
             connection.execute("DELETE FROM visitor_sessions WHERE expires_at < ?", (now,))
         for row in rows:
@@ -1156,6 +1183,40 @@ def redeem_gift_code(payload: RedeemGiftCode, request: Request) -> dict[str, obj
     return account_public(updated)
 
 
+@app.get("/api/history")
+def download_history(request: Request) -> dict[str, object]:
+    current = require_registered_account(request)
+    if effective_plan(current) != "pro":
+        raise HTTPException(status_code=403, detail="El historial está incluido en Video Pro")
+    with database() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, source_url, mode, quality, status, detail, file_name, thumbnail_url, file_path, created_at
+            FROM jobs
+            WHERE account_id = ?
+            ORDER BY created_at DESC
+            LIMIT 50
+            """,
+            (current["id"],),
+        ).fetchall()
+    return {
+        "items": [
+            {
+                "id": row["id"],
+                "network": source_network(row["source_url"]),
+                "mode": row["mode"],
+                "quality": row["quality"],
+                "status": row["status"],
+                "title": row["detail"] or row["file_name"] or "Archivo preparado",
+                "thumbnailUrl": row["thumbnail_url"],
+                "available": bool(row["file_path"]),
+                "createdAt": row["created_at"],
+            }
+            for row in rows
+        ]
+    }
+
+
 def validate_request_identity(request_id: str | None, request_token: str | None) -> None:
     if bool(request_id) != bool(request_token):
         raise HTTPException(status_code=400, detail="La solicitud de descarga es inválida")
@@ -1319,8 +1380,10 @@ def download(job_id: str, token: str) -> FileResponse:
     row = get_job(job_id)
     if not row or not secrets.compare_digest(row["token_hash"], sha256(token.encode()).hexdigest()):
         raise HTTPException(status_code=404, detail="Archivo inexistente")
-    if row["status"] != "complete" or not row["file_path"]:
+    if row["status"] != "complete":
         raise HTTPException(status_code=409, detail="El archivo todavía no está listo")
+    if not row["file_path"]:
+        raise HTTPException(status_code=410, detail="El archivo ya no está disponible")
     path = Path(row["file_path"])
     if not path.is_file() or DOWNLOAD_DIR not in path.resolve().parents:
         raise HTTPException(status_code=410, detail="El archivo ya no está disponible")

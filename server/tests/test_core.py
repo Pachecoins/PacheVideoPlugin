@@ -716,6 +716,53 @@ class BillingSessionTests(unittest.TestCase):
         self.assertEqual(account["pro_gift"], 1)
         self.assertEqual(repeated.exception.status_code, 409)
 
+    def test_pro_history_keeps_network_and_thumbnail_metadata(self) -> None:
+        request = backend.Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/history",
+                "headers": [(b"authorization", b"Bearer history-token")],
+            }
+        )
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(
+                    backend,
+                    "supabase_user_from_request",
+                    return_value={"id": "history-user", "email": "historial@example.com"},
+                ),
+            ):
+                backend.initialize_database()
+                account = backend.registered_account_from_request(request)
+                with backend.database() as connection:
+                    connection.execute("UPDATE accounts SET plan = 'pro' WHERE id = ?", (account["id"],))
+                    connection.execute(
+                        """
+                        INSERT INTO jobs (
+                            id, source_url, mode, quality, audio_kbps, status, progress, message, detail,
+                            token_hash, plan, account_id, thumbnail_url, created_at, expires_at
+                        ) VALUES (?, ?, 'video', '1080', '320', 'complete', 100, 'Descarga lista', ?, ?, 'pro', ?, ?, 10, 20)
+                        """,
+                        (
+                            "history-instagram",
+                            "https://www.instagram.com/reel/abc",
+                            "Reel de prueba",
+                            "token",
+                            account["id"],
+                            "https://cdn.example.com/thumb.jpg",
+                        ),
+                    )
+                history = backend.download_history(request)
+
+        self.assertEqual(history["items"][0]["network"], "instagram")
+        self.assertEqual(history["items"][0]["title"], "Reel de prueba")
+        self.assertEqual(history["items"][0]["thumbnailUrl"], "https://cdn.example.com/thumb.jpg")
+
 
 if __name__ == "__main__":
     unittest.main()

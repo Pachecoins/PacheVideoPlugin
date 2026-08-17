@@ -32,6 +32,18 @@ type Account = {
   email?: string | null;
 };
 
+type HistoryItem = {
+  id: string;
+  network: "youtube" | "instagram" | "tiktok" | "facebook" | "web";
+  mode: Mode;
+  quality: string;
+  status: Job["status"];
+  title: string;
+  thumbnailUrl?: string | null;
+  available: boolean;
+  createdAt: number;
+};
+
 class ApiError extends Error {
   status: number;
 
@@ -68,6 +80,18 @@ async function readJson(response: Response) {
   return payload;
 }
 
+function NetworkIcon({ network }: { network: HistoryItem["network"] }) {
+  if (network === "instagram") return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.3" cy="6.8" r="1" /></svg>;
+  if (network === "tiktok") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3v11.1a4.1 4.1 0 1 1-3.2-4V7.4A7.1 7.1 0 1 0 17 14V8.2c1.1 1 2.5 1.6 4 1.6V6.6A4.2 4.2 0 0 1 17 3h-3Z" /></svg>;
+  if (network === "facebook") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.7 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V3.9c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4V10H8v3h2.8v8h2.9Z" /></svg>;
+  if (network === "youtube") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 7.2a2.8 2.8 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.5.5a2.8 2.8 0 0 0-2 2C2 8.9 2 12 2 12s0 3.1.5 4.8a2.8 2.8 0 0 0 2 2c1.7.5 7.5.5 7.5.5s5.8 0 7.5-.5a2.8 2.8 0 0 0 2-2C22 15.1 22 12 22 12s0-3.1-.5-4.8ZM10 15.5v-7l6 3.5-6 3.5Z" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5S14.4 18.1 12 20.5C9.6 18.1 8.4 15.3 8.4 12S9.6 5.9 12 3.5Z" /></svg>;
+}
+
+function networkLabel(network: HistoryItem["network"]) {
+  return { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", youtube: "YouTube", web: "Web" }[network];
+}
+
 export default function DownloaderApp() {
   const [mode, setMode] = useState<Mode>("video");
   const [url, setUrl] = useState("");
@@ -79,6 +103,8 @@ export default function DownloaderApp() {
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [batchJobs, setBatchJobs] = useState<Job[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyBusy, setHistoryBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
@@ -104,6 +130,22 @@ export default function DownloaderApp() {
       setAccount(nextAccount);
     } catch {
       setFormError("No pudimos inicializar tu cuenta. Recargá la página.");
+    }
+  }, []);
+
+  const loadHistory = useCallback(async (token: string) => {
+    if (!token) return;
+    setHistoryBusy(true);
+    try {
+      const response = await fetch("/api/history", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const payload = (await readJson(response)) as { items?: HistoryItem[] };
+      setHistory(payload.items || []);
+    } finally {
+      setHistoryBusy(false);
     }
   }, []);
 
@@ -144,6 +186,14 @@ export default function DownloaderApp() {
     };
   }, [loadAccount]);
 
+  useEffect(() => {
+    if (account?.plan === "pro" && accessToken) {
+      void loadHistory(accessToken);
+    } else if (account?.plan !== "pro") {
+      setHistory([]);
+    }
+  }, [account?.plan, accessToken, loadHistory]);
+
   // Links from the public site focus the only access field: the same email
   // flow creates a new account or restores an existing one.
   useEffect(() => {
@@ -171,6 +221,7 @@ export default function DownloaderApp() {
           freeVideosRemaining: Math.max(0, current.freeVideosRemaining - 1),
         } : current);
       }
+      if (next.status === "complete" && accessToken) void loadHistory(accessToken);
       if (next.status !== "complete" && next.status !== "error") {
         pollTimer.current = setTimeout(() => poll(jobId, token), 900);
       }
@@ -213,6 +264,7 @@ export default function DownloaderApp() {
       const next = (await readJson(response)) as Job;
       const nextWithToken = { ...next, token };
       setBatchJobs((current) => current.map((item) => item.id === jobId ? nextWithToken : item));
+      if (next.status === "complete" && accessToken) void loadHistory(accessToken);
       if (next.status !== "complete" && next.status !== "error") {
         scheduleBatchPoll(jobId, token);
       }
@@ -486,6 +538,8 @@ export default function DownloaderApp() {
   const batchBusy = batchJobs.some((item) => !["complete", "error"].includes(item.status));
   const busy = startingDownload || (!!job && !["complete", "error"].includes(job.status)) || batchBusy;
   const proCandidate = account?.plan === "pro";
+  const activeQueueCount = (job && !["complete", "error"].includes(job.status) ? 1 : 0)
+    + batchJobs.filter((item) => !["complete", "error"].includes(item.status)).length;
   const videoQuotaExhausted = mode === "video" && !!account && !proCandidate && account.freeVideosRemaining <= 0;
   const freeQuotaCopy = account?.authenticated
     ? `Te quedan ${account.freeVideosRemaining} de ${account.freeVideoLimit} videos gratis hasta 1080p`
@@ -737,7 +791,7 @@ export default function DownloaderApp() {
           <section className="batch-jobs" aria-live="polite" aria-label="Estado de tu lista de descargas">
             <div className="batch-jobs-heading">
               <div>
-                <span>LISTA VIDEO PRO</span>
+                <span>COLA DE DESCARGAS</span>
                 <strong>{batchJobs.filter((item) => item.status === "complete").length} de {batchJobs.length} archivos listos</strong>
               </div>
               <small>Podés descargar cada archivo cuando esté disponible.</small>
@@ -776,6 +830,38 @@ export default function DownloaderApp() {
           </section>
         )}
 
+        {proCandidate && (
+          <section className="pro-history" aria-labelledby="history-title">
+            <div className="pro-history-heading">
+              <div>
+                <span>HERRAMIENTAS PRO</span>
+                <h2 id="history-title">Historial de descargas</h2>
+              </div>
+              <strong>{activeQueueCount > 0 ? `${activeQueueCount} en cola` : "Cola vacía"}</strong>
+            </div>
+            {historyBusy ? (
+              <p className="history-empty">Actualizando tu historial…</p>
+            ) : history.length ? (
+              <div className="history-grid">
+                {history.map((item) => (
+                  <article className="history-item" key={item.id}>
+                    <div className="history-thumb" aria-hidden="true">
+                      {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <NetworkIcon network={item.network} />}
+                    </div>
+                    <div className="history-copy">
+                      <span className={`network-icon ${item.network}`} aria-label={networkLabel(item.network)}><NetworkIcon network={item.network} /> {networkLabel(item.network)}</span>
+                      <strong>{item.title}</strong>
+                      <small>{item.mode === "audio" ? "Audio MP3" : `${item.quality === "max" ? "Máxima calidad" : `${item.quality}p`} · MP4`} · {item.status === "complete" ? item.available ? "Disponible" : "Archivo vencido" : item.status === "error" ? "No disponible" : "En proceso"}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="history-empty">Todavía no descargaste nada con Video Pro. Tus próximas descargas aparecerán acá.</p>
+            )}
+          </section>
+        )}
+
         <div className="trust-row" aria-label="Beneficios">
           <span>✓ Sin instalaciones</span>
           <span>✓ Funciona en celular</span>
@@ -792,7 +878,7 @@ export default function DownloaderApp() {
           </aside>
         )}
 
-        <section className="plans-section" id="planes" aria-labelledby="plans-title">
+        {!proCandidate && <section className="plans-section" id="planes" aria-labelledby="plans-title">
           <div className="section-heading">
             <span>PLANES SIMPLES</span>
             <h2 id="plans-title">Elegí cómo querés descargar</h2>
@@ -831,7 +917,7 @@ export default function DownloaderApp() {
                 : <button className="plan-status pro-status" type="button" onClick={() => void startSubscription()}>Suscribirme por $9.999,99</button>}
             </article>
           </div>
-        </section>
+        </section>}
       </section>
     </main>
   );
