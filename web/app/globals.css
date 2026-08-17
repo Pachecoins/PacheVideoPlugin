@@ -30,6 +30,7 @@ a, summary { cursor: pointer; }
 
 .topbar { max-width: 1180px; margin: auto; padding: 24px 28px; display: flex; align-items: center; justify-content: space-between; }
 .brand { color: #fff; text-decoration: none; display: flex; gap: 11px; align-items: center; font-weight: 900; letter-spacing: .12em; font-size: 14px; }
+.brand-logo { width: 34px; height: 34px; flex: 0 0 auto; object-fit: cover; border-radius: 9px; box-shadow: 0 0 20px rgba(199, 146, 69, .22); }
 .brand-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; background: linear-gradient(145deg, #c566ff, #7217b8); box-shadow: 0 0 26px rgba(162,56,242,.28); font-size: 17px; letter-spacing: 0; }
 .server-pill { color: #bcb5c2; font-size: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.03); border-radius: 999px; padding: 8px 12px; }
 .server-pill i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #57df8a; box-shadow: 0 0 10px #57df8a; }

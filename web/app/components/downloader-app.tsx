@@ -462,7 +462,7 @@ export default function DownloaderApp() {
     <main className="site-shell">
       <nav className="topbar" aria-label="Navegación principal">
         <Link className="brand" href="/" prefetch={false} aria-label="PacheVideo, volver al inicio">
-          <span className="brand-mark">P</span>
+          <img className="brand-logo" src="/logo.png" alt="" />
           <span>PACHEVIDEO</span>
         </Link>
         <div className="app-topbar-actions">

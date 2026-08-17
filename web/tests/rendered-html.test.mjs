@@ -14,24 +14,10 @@ async function render(path = "/") {
   );
 }
 
-test("server-renders the commercial landing", async () => {
+test("redirects the public root directly to the downloader", async () => {
   const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
-  const html = await response.text();
-  assert.match(html, /<html lang="es">/i);
-  assert.match(html, /<title>PacheVideo/);
-  assert.match(html, /Tus videos listos para editar/);
-  assert.match(html, /PLANES TRANSPARENTES/);
-  assert.match(html, /Abrir PacheVideo/);
-  assert.match(html, /5 videos gratis hasta 1080p/);
-  assert.match(html, /Crear cuenta gratis/);
-  assert.match(html, /Video Pro habilita 2K, 4K, máxima calidad y listas de enlaces/);
-  assert.match(html, /\$9\.999,99/);
-  assert.doesNotMatch(html, /\$10\.000/);
-  assert.match(html, /manifest\.webmanifest/);
-  assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Starter Project/);
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "/app");
 });
 
 test("server-renders the downloader at /app", async () => {
@@ -40,6 +26,7 @@ test("server-renders the downloader at /app", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>PacheVideo App/);
+  assert.match(html, /logo\.png/);
   assert.match(html, /Descargá\. Convertí\./);
   assert.match(html, /Preparar descarga/);
   assert.match(html, />Inicio<\/a>/);
