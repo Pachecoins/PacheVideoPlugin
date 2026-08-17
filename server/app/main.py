@@ -58,6 +58,7 @@ RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.getenv("PACHEVIDEO_RETRY_MA
 FREE_DOWNLOAD_RATE_LIMIT = max(0, int(os.getenv("PACHEVIDEO_FREE_DOWNLOAD_RATE_LIMIT", "2000000")))
 PRO_CONCURRENT_FRAGMENTS = max(1, int(os.getenv("PACHEVIDEO_PRO_CONCURRENT_FRAGMENTS", "4")))
 PRO_BATCH_MAX_ITEMS = max(1, int(os.getenv("PACHEVIDEO_PRO_BATCH_MAX_ITEMS", "20")))
+INTERNAL_PROXY_TOKEN = os.getenv("PACHEVIDEO_INTERNAL_TOKEN", "").strip()
 SESSION_COOKIE_NAME = "pachevideo_session"
 SESSION_TTL_SECONDS = max(86_400, int(os.getenv("PACHEVIDEO_SESSION_TTL_SECONDS", str(180 * 86_400))))
 COOKIE_SECURE = os.getenv("PACHEVIDEO_COOKIE_SECURE", "false").lower() in {"1", "true", "yes"}
@@ -83,7 +84,9 @@ LAUNCH_GIFT_CODE_HASHES = (
 )
 
 FREE_VIDEO_QUALITIES = {"480", "720", "1080"}
-ANONYMOUS_FREE_VIDEO_LIMIT = 1
+# An anonymous session exists only to preserve the UI. Download credits are
+# granted after the email identity is verified, never by minting cookies.
+ANONYMOUS_FREE_VIDEO_LIMIT = 0
 REGISTERED_FREE_VIDEO_LIMIT = 5
 TRANSIENT_ERROR_MARKERS = (
     "http error 403",
@@ -196,6 +199,32 @@ def initialize_database() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS network_identities (
+                network_hash TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS credit_ledger (
+                id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                network_hash TEXT,
+                job_id TEXT,
+                event TEXT NOT NULL,
+                credits INTEGER NOT NULL,
+                created_at REAL NOT NULL,
+                FOREIGN KEY (account_id) REFERENCES accounts(id),
+                FOREIGN KEY (job_id) REFERENCES jobs(id)
+            )
+            """
+        )
         existing_columns = {
             row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
         }
@@ -283,6 +312,9 @@ def initialize_database() -> None:
         )
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_request_id ON jobs(request_id) WHERE request_id IS NOT NULL"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ledger_account_created ON credit_ledger(account_id, created_at)"
         )
         connection.execute("PRAGMA optimize")
 
@@ -394,6 +426,30 @@ def session_token_hash(token: str) -> str:
     return sha256(token.encode()).hexdigest()
 
 
+def request_client_ip(request: Request) -> str:
+    """Use forwarded client IPs only from our authenticated web proxy."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+    supplied_proxy_headers = bool(forwarded or request.headers.get("cf-connecting-ip"))
+    supplied_token = request.headers.get("x-pachevideo-internal-token", "")
+    proxy_authenticated = bool(INTERNAL_PROXY_TOKEN) and secrets.compare_digest(supplied_token, INTERNAL_PROXY_TOKEN)
+    if supplied_proxy_headers and not proxy_authenticated:
+        raise HTTPException(status_code=403, detail="Encabezado de proxy no autorizado")
+    candidate = forwarded if proxy_authenticated else (request.client.host if request.client else "unknown")
+    try:
+        return str(ipaddress.ip_address(candidate))
+    except ValueError:
+        return "unknown"
+
+
+def network_identity(request: Request) -> str:
+    """Pseudonymous containment key; raw IP, UA and fingerprint are never stored."""
+    client_ip = request_client_ip(request)
+    user_agent = request.headers.get("user-agent", "")[:512]
+    fingerprint = request.headers.get("x-pachevideo-fingerprint", "")[:128]
+    material = f"{client_ip}\x1f{user_agent}\x1f{fingerprint}"
+    return sha256(material.encode("utf-8")).hexdigest()
+
+
 def anonymous_account_from_request(request: Request) -> sqlite3.Row | None:
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token:
@@ -492,20 +548,34 @@ def account_from_request(request: Request) -> sqlite3.Row | None:
     return registered_account_from_request(request) or anonymous_account_from_request(request)
 
 
-def create_anonymous_account() -> tuple[sqlite3.Row, str]:
+def create_anonymous_account(network_hash: str | None = None) -> tuple[sqlite3.Row, str]:
     now = time.time()
-    account_id = uuid4().hex
     token = secrets.token_urlsafe(32)
     with database() as connection:
-        connection.execute(
-            "INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)",
-            (account_id, now, now),
-        )
+        account = None
+        if network_hash:
+            existing = connection.execute(
+                "SELECT accounts.* FROM network_identities JOIN accounts ON accounts.id = network_identities.account_id WHERE network_hash = ?",
+                (network_hash,),
+            ).fetchone()
+            if existing:
+                account = existing
+        if not account:
+            account_id = uuid4().hex
+            connection.execute(
+                "INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)",
+                (account_id, now, now),
+            )
+            if network_hash:
+                connection.execute(
+                    "INSERT INTO network_identities (network_hash, account_id, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                    (network_hash, account_id, now, now),
+                )
+            account = connection.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
         connection.execute(
             "INSERT INTO visitor_sessions (token_hash, account_id, expires_at, created_at) VALUES (?, ?, ?, ?)",
-            (session_token_hash(token), account_id, now + SESSION_TTL_SECONDS, now),
+            (session_token_hash(token), account["id"], now + SESSION_TTL_SECONDS, now),
         )
-        account = connection.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
     return account, token
 
 
@@ -921,6 +991,13 @@ def run_download(
                     """,
                     (time.time(), account_id),
                 )
+                connection.execute(
+                    """
+                    INSERT INTO credit_ledger (id, account_id, job_id, event, credits, created_at)
+                    VALUES (?, ?, ?, 'video_refunded', 1, ?)
+                    """,
+                    (uuid4().hex, account_id, job_id, time.time()),
+                )
         update_job(
             job_id,
             status="error",
@@ -1059,7 +1136,7 @@ def account(request: Request) -> JSONResponse:
     current = account_from_request(request)
     if current:
         return JSONResponse(account_public(current), headers={"Cache-Control": "no-store"})
-    current, token = create_anonymous_account()
+    current, token = create_anonymous_account(network_identity(request))
     response = JSONResponse(account_public(current), headers={"Cache-Control": "no-store"})
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
@@ -1260,6 +1337,7 @@ def enqueue_job(
     raw_url: str,
     account: sqlite3.Row,
     plan: Literal["free", "pro"],
+    network_hash: str,
     request_id: str | None = None,
     request_token: str | None = None,
 ) -> dict[str, object]:
@@ -1289,6 +1367,11 @@ def enqueue_job(
     now = time.time()
     with database() as connection:
         if plan == "free" and payload.mode == "video":
+            if not account["auth_provider_id"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Registrate gratis con tu email para obtener 5 videos en 1080p.",
+                )
             video_limit = free_video_limit(account)
             consumed = connection.execute(
                 """
@@ -1329,6 +1412,14 @@ def enqueue_job(
                 now + JOB_TTL_SECONDS,
             ),
         )
+        if plan == "free" and payload.mode == "video":
+            connection.execute(
+                """
+                INSERT INTO credit_ledger (id, account_id, network_hash, job_id, event, credits, created_at)
+                VALUES (?, ?, ?, ?, 'video_reserved', -1, ?)
+                """,
+                (uuid4().hex, account["id"], network_hash, job_id, now),
+            )
     executor.submit(
         run_download,
         job_id,
@@ -1345,8 +1436,8 @@ def enqueue_job(
 
 @app.post("/api/jobs", status_code=202)
 def create_job(payload: CreateJob, request: Request) -> dict[str, object]:
-    client = request.headers.get("cf-connecting-ip") or request.client.host if request.client else "unknown"
-    consume_rate_limit(str(client))
+    client = request_client_ip(request)
+    consume_rate_limit(client)
     account = require_account(request)
     enforce_active_job_capacity()
     plan = effective_plan(account)
@@ -1356,6 +1447,7 @@ def create_job(payload: CreateJob, request: Request) -> dict[str, object]:
         str(payload.url),
         account,
         plan,
+        network_identity(request),
         payload.requestId,
         payload.requestToken,
     )
@@ -1363,8 +1455,8 @@ def create_job(payload: CreateJob, request: Request) -> dict[str, object]:
 
 @app.post("/api/jobs/batch", status_code=202)
 def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
-    client = request.headers.get("cf-connecting-ip") or request.client.host if request.client else "unknown"
-    consume_rate_limit(str(client))
+    client = request_client_ip(request)
+    consume_rate_limit(client)
     account = require_account(request)
     if effective_plan(account) != "pro":
         raise HTTPException(status_code=403, detail="Las listas de enlaces son una función de Video Pro")
@@ -1384,7 +1476,7 @@ def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
             if payload.requestToken
             else None
         )
-        jobs.append(enqueue_job(payload, raw_url, account, "pro", request_id, request_token))
+        jobs.append(enqueue_job(payload, raw_url, account, "pro", network_identity(request), request_id, request_token))
     return {"jobs": jobs, "total": len(jobs)}
 
 

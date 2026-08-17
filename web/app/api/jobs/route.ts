@@ -1,4 +1,4 @@
-import { backendBase, jsonHeaders } from "../backend";
+import { backendBase, jsonHeaders, trustedProxyHeaders } from "../backend";
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       method: "POST",
       headers: {
         ...jsonHeaders(),
-        "X-Forwarded-For": request.headers.get("cf-connecting-ip") || "unknown",
+        ...trustedProxyHeaders(request),
         Cookie: request.headers.get("cookie") || "",
         Authorization: request.headers.get("authorization") || "",
       },

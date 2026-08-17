@@ -9,3 +9,11 @@ export function jsonHeaders() {
   };
 }
 
+export function trustedProxyHeaders(request: Request) {
+  const clientIp = request.headers.get("cf-connecting-ip") || "";
+  const internalToken = process.env.PACHEVIDEO_INTERNAL_TOKEN || "";
+  return {
+    ...(clientIp ? { "X-Forwarded-For": clientIp } : {}),
+    ...(internalToken ? { "X-PacheVideo-Internal-Token": internalToken } : {}),
+  };
+}

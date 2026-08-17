@@ -90,6 +90,35 @@ class SecurityTests(unittest.TestCase):
         validate_public_url("http://example.com/video")
         self.assertEqual(getaddrinfo.call_args.args[1], 80)
 
+    def test_forwarded_ip_requires_the_private_proxy_token(self) -> None:
+        request = backend.Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/account",
+                "headers": [(b"x-forwarded-for", b"8.8.8.8")],
+                "client": ("203.0.113.1", 1234),
+            }
+        )
+        with patch.object(backend, "INTERNAL_PROXY_TOKEN", "proxy-secret"):
+            with self.assertRaises(backend.HTTPException) as blocked:
+                backend.request_client_ip(request)
+            self.assertEqual(blocked.exception.status_code, 403)
+
+            trusted = backend.Request(
+                {
+                    "type": "http",
+                    "method": "GET",
+                    "path": "/api/account",
+                    "headers": [
+                        (b"x-forwarded-for", b"8.8.8.8"),
+                        (b"x-pachevideo-internal-token", b"proxy-secret"),
+                    ],
+                    "client": ("203.0.113.1", 1234),
+                }
+            )
+            self.assertEqual(backend.request_client_ip(trusted), "8.8.8.8")
+
     def test_format_selector_has_direct_fallback(self) -> None:
         self.assertTrue(format_selector("video", "1080").endswith("/best"))
         self.assertIn("bestaudio[ext=webm]", format_selector("video", "1080"))
@@ -479,8 +508,36 @@ class BillingSessionTests(unittest.TestCase):
 
         self.assertEqual(saved["token_hash"], backend.session_token_hash(token))
         self.assertEqual(saved["account_id"], account["id"])
-        self.assertEqual(public["freeVideoLimit"], 1)
-        self.assertEqual(public["freeVideosRemaining"], 1)
+        self.assertEqual(public["freeVideoLimit"], 0)
+        self.assertEqual(public["freeVideosRemaining"], 0)
+
+    def test_rotating_anonymous_cookies_keeps_one_network_identity_without_video_credit(self) -> None:
+        request = backend.Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/account",
+                "headers": [(b"user-agent", b"pentest-browser")],
+                "client": ("198.51.100.10", 1234),
+            }
+        )
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+            ):
+                backend.initialize_database()
+                responses = [backend.account(request) for _ in range(10)]
+                payloads = [backend.json.loads(response.body) for response in responses]
+                with backend.database() as connection:
+                    accounts = connection.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+                    identities = connection.execute("SELECT COUNT(*) FROM network_identities").fetchone()[0]
+
+        self.assertEqual(accounts, 1)
+        self.assertEqual(identities, 1)
+        self.assertTrue(all(payload["freeVideosRemaining"] == 0 for payload in payloads))
 
     def test_registering_grants_a_fresh_five_video_quota(self) -> None:
         with TemporaryDirectory() as temp:
@@ -524,7 +581,7 @@ class BillingSessionTests(unittest.TestCase):
         self.assertEqual(public["freeVideosRemaining"], 5)
         self.assertIsNone(old_session)
 
-    def test_server_enforces_one_anonymous_video(self) -> None:
+    def test_anonymous_account_must_verify_email_before_video_credit(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)
             with (
@@ -547,7 +604,6 @@ class BillingSessionTests(unittest.TestCase):
                     }
                 )
                 payload = backend.CreateJob(url="https://example.com/video")
-                backend.create_job(payload, request)
                 with self.assertRaises(backend.HTTPException) as blocked:
                     backend.create_job(payload, request)
                 with backend.database() as connection:
@@ -558,7 +614,7 @@ class BillingSessionTests(unittest.TestCase):
 
         self.assertEqual(blocked.exception.status_code, 403)
         self.assertIn("Registrate gratis", blocked.exception.detail)
-        self.assertEqual(uses, 1)
+        self.assertEqual(uses, 0)
 
     def test_repeated_creation_request_returns_the_same_job_without_spending_quota_twice(self) -> None:
         with TemporaryDirectory() as temp:
@@ -573,6 +629,11 @@ class BillingSessionTests(unittest.TestCase):
             ):
                 backend.initialize_database()
                 account, token = backend.create_anonymous_account()
+                with backend.database() as connection:
+                    connection.execute(
+                        "UPDATE accounts SET auth_provider_id = 'idempotent-user', email = 'idempotent@example.com' WHERE id = ?",
+                        (account["id"],),
+                    )
                 request = backend.Request(
                     {
                         "type": "http",
@@ -633,11 +694,17 @@ class BillingSessionTests(unittest.TestCase):
                     backend.create_job(payload, request)
                 account = backend.registered_account_from_request(request)
                 public = backend.account_public(account)
+                with backend.database() as connection:
+                    ledger_count = connection.execute(
+                        "SELECT COUNT(*) FROM credit_ledger WHERE account_id = ? AND event = 'video_reserved'",
+                        (account["id"],),
+                    ).fetchone()[0]
 
         self.assertEqual(blocked.exception.status_code, 403)
         self.assertIn("5 videos gratis", blocked.exception.detail)
         self.assertEqual(public["freeVideoUses"], 5)
         self.assertEqual(public["freeVideosRemaining"], 0)
+        self.assertEqual(ledger_count, 5)
 
     def test_pro_can_create_a_repeatable_list_of_links(self) -> None:
         request = backend.Request(

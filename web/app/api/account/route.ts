@@ -1,9 +1,10 @@
-import { backendBase } from "../backend";
+import { backendBase, trustedProxyHeaders } from "../backend";
 
 export async function GET(request: Request) {
   try {
     const response = await fetch(`${backendBase}/api/account`, {
       headers: {
+        ...trustedProxyHeaders(request),
         Cookie: request.headers.get("cookie") || "",
         Authorization: request.headers.get("authorization") || "",
       },
