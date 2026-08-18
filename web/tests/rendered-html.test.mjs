@@ -42,7 +42,7 @@ test("server-renders the downloader at /app", async () => {
   assert.match(html, /Instalalo para máximo rendimiento/);
   assert.match(html, /Descargar para Windows/);
   assert.match(html, /Usás Mac\? Consultanos para instalarlo/);
-  assert.match(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /releases\/download\/v0\.5\.1\/PacheVideo-Setup-Windows-x64\.exe/);
+  assert.match(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /releases\/download\/v0\.5\.2\/PacheVideo-Setup-Windows-x64\.exe/);
   assert.doesNotMatch(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /PacheVideo-Install-macOS\.command/);
   assert.doesNotMatch(html, /YouTube/);
   assert.doesNotMatch(html, /\$10\.000/);
