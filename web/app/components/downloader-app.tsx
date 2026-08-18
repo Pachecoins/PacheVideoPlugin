@@ -129,6 +129,20 @@ export default function DownloaderApp() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const nextAccount = (await readJson(response)) as Account;
+      // Backward compatibility for the API currently running in production.
+      // This request is invisible to the user and will be unnecessary once
+      // the VPS deploy of the no-gate backend is complete.
+      if (token && nextAccount.authenticated && !nextAccount.termsAccepted) {
+        const legacyAcceptance = await fetch("/api/account/terms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: "{}",
+        });
+        if (legacyAcceptance.ok) {
+          setAccount((await readJson(legacyAcceptance)) as Account);
+          return;
+        }
+      }
       setAccount(nextAccount);
     } catch {
       setFormError("No pudimos inicializar tu cuenta. Recargá la página.");

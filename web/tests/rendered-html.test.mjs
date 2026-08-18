@@ -65,6 +65,7 @@ test("keeps public legal reference pages available without showing legal gates i
 
   const source = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /Aceptar y continuar|Al continuar, aceptás los|terms-form|legal-links/);
+  assert.match(source, /legacyAcceptance/);
 });
 
 test("downloader recovers automatically without a manual retry control", async () => {
