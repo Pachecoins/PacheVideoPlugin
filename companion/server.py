@@ -25,7 +25,7 @@ import yt_dlp
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PACHEVIDEO_PORT", "18765"))
 OUTPUT_FOLDER = Path(os.environ.get("PACHEVIDEO_OUTPUT", "~/Downloads/PacheVideo")).expanduser().resolve()
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 DOWNLOAD_ATTEMPTS = max(1, int(os.environ.get("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "10")))
 RETRY_BASE_SECONDS = max(0.0, float(os.environ.get("PACHEVIDEO_RETRY_BASE_SECONDS", "1.5")))
 RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.environ.get("PACHEVIDEO_RETRY_MAX_SECONDS", "20")))
@@ -249,6 +249,27 @@ def compatibility_selector(mode: str, quality: str) -> str:
     return f"best[ext=mp4][height<={height}]/best[height<={height}]/best"
 
 
+def is_youtube_source(raw_url: str) -> bool:
+    """Detect YouTube hosts without matching lookalike domains."""
+    hostname = (urlparse(raw_url).hostname or "").lower().rstrip(".")
+    return hostname == "youtu.be" or hostname == "youtube.com" or hostname.endswith(".youtube.com")
+
+
+def selector_for_attempt(raw_url: str, mode: str, quality: str, attempt: int) -> str:
+    """Choose a broadly playable single-file fallback before protected DASH streams.
+
+    Some YouTube videos expose high-resolution DASH streams that are rejected by
+    the origin even though an ordinary progressive MP4 remains available.  The
+    desktop client prioritizes that compatible rendition for YouTube; later
+    attempts retain the same safe fallback instead of retrying a denied URL.
+    """
+    if is_youtube_source(raw_url):
+        return compatibility_selector(mode, quality)
+    if attempt > 1 and mode == "video":
+        return compatibility_selector(mode, quality)
+    return format_selector(mode, quality)
+
+
 def is_retryable_download_error(error: Exception) -> bool:
     message = str(error).lower()
     if any(marker in message for marker in PERMANENT_ERROR_MARKERS):
@@ -440,13 +461,10 @@ def run_download(job: Job) -> None:
             )
 
         def options_for_attempt(attempt: int) -> dict[str, object]:
-            use_compatibility_format = attempt > 1 and job.mode == "video"
+            selected_format = selector_for_attempt(job.url, job.mode, job.quality, attempt)
+            use_compatibility_format = selected_format == compatibility_selector(job.mode, job.quality)
             options: dict[str, object] = {
-                "format": (
-                    compatibility_selector(job.mode, job.quality)
-                    if use_compatibility_format
-                    else format_selector(job.mode, job.quality)
-                ),
+                "format": selected_format,
                 "outtmpl": str(attempt_folder / "%(title).120B.%(ext)s"),
                 "noplaylist": True,
                 "quiet": True,

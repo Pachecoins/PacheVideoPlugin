@@ -9,6 +9,7 @@ from companion.server import (
     compatibility_selector,
     inspect_media_codecs,
     is_retryable_download_error,
+    selector_for_attempt,
     unique_destination,
 )
 import yt_dlp
@@ -29,6 +30,20 @@ class CompanionReliabilityTests(unittest.TestCase):
         self.assertEqual(
             compatibility_selector("video", "1080"),
             "best[ext=mp4][height<=1080]/best[height<=1080]/best",
+        )
+
+    def test_youtube_uses_single_file_mp4_before_high_quality_dash(self) -> None:
+        self.assertEqual(
+            selector_for_attempt("https://youtu.be/VYq_h7cOCBY", "video", "max", 1),
+            "best[ext=mp4]/best",
+        )
+        self.assertEqual(
+            selector_for_attempt("https://www.youtube.com/watch?v=test", "video", "1080", 1),
+            "best[ext=mp4][height<=1080]/best[height<=1080]/best",
+        )
+        self.assertEqual(
+            selector_for_attempt("https://notyoutube.com/watch?v=test", "video", "max", 1),
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
         )
 
     def test_desktop_retries_transient_but_not_private_content(self) -> None:

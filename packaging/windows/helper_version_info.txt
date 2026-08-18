@@ -17,12 +17,12 @@ VSVersionInfo(
         [
           StringStruct('CompanyName', 'Pachecoins'),
           StringStruct('FileDescription', 'PacheVideo Helper'),
-          StringStruct('FileVersion', '0.5.0'),
+          StringStruct('FileVersion', '0.5.1'),
           StringStruct('InternalName', 'PacheVideoHelper'),
           StringStruct('LegalCopyright', 'Pachecoins'),
           StringStruct('OriginalFilename', 'PacheVideoHelper.exe'),
           StringStruct('ProductName', 'PacheVideo'),
-          StringStruct('ProductVersion', '0.5.0')
+          StringStruct('ProductVersion', '0.5.1')
         ]
       )
     ]),

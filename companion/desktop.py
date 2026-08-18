@@ -19,7 +19,7 @@ from PIL import Image
 
 
 API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 
 
 def resource_path(name: str) -> Path:
