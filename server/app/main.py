@@ -103,9 +103,10 @@ LAUNCH_GIFT_CODE_HASHES = (
     "8b6ac15fb9afd8d21c3fff2d3b169cfac28db970a046ea9d3c24f5f972314ac8",
     "6d997a807479493e3d1aa8d925759cfce6a60a1727276b5751074b1839e6f2d5",
     "abe08f771cb3e764b17420875cf030f8951975706fb9d152195dfb98620897d7",
-    "76ad45b3ada4ced827b2169c2359c5360801581e5e2317c4d0c8bdd185c488b5",
-    "8f3cee3e468fb1ddf0022538a2589167a9671dbb7683e014237ac142d41a1ddc",
-    "39701b60e505e2107848862b6449e153ef25ca25e67c3e1188ce28393a0ee9a0",
+    "8a8e9f2a78521114594d92b74eb0995368d699386b8d65ff450487f6cee77e78",
+    "c46538918567a55414c8899cfe13055c4bd48b4f517f40a95dd1d4ee0888815d",
+    "091a3a77a0b6e93ba3c953693aeaa3e9a4c62334f8368f35579b7b7ff468ad4e",
+    "7d39881691c9b67d3b2f7d1f15180b88d65fe3e35d565976554e0bf13f045c1b",
     "e4b18f9882e3d2784728f742d43588c8f716a9a81c2c12c51da067b3a5cb9d6a",
     "3503c04bdc78e8d0f347a3e7eb7ed317983605ea0344e5f4188c803ede245733",
     "ae3c90b67397fbfe1388121b07640b7e8945ba5970ce3cecd9606d1fc9b84a9a",
@@ -119,6 +120,15 @@ LAUNCH_GIFT_CODE_HASHES = (
     "5417a754837e2a057c9000898c6e6500b90f5689d53da8195f8e003556e3c017",
     "0444f6098402cf7c5876b81a5e3618e4775432f25c79d70a591216b7770c7d3a",
     "fa89a49a43208e65a2c68d03e8e8e07b98f2ccf23610dd98478aaf5732b4cfa9",
+)
+
+# Replaced before distribution: keep the old entries invalid even on existing
+# databases. A code already redeemed remains Pro because the entitlement lives
+# on the account, not in the invitation row.
+REVOKED_GIFT_CODE_HASHES = (
+    "76ad45b3ada4ced827b2169c2359c5360801581e5e2317c4d0c8bdd185c488b5",
+    "8f3cee3e468fb1ddf0022538a2589167a9671dbb7683e014237ac142d41a1ddc",
+    "39701b60e505e2107848862b6449e153ef25ca25e67c3e1188ce28393a0ee9a0",
 )
 
 FREE_VIDEO_QUALITIES = {"480", "720", "1080"}
@@ -327,6 +337,10 @@ def initialize_database() -> None:
         connection.executemany(
             "INSERT OR IGNORE INTO gift_codes (code_hash) VALUES (?)",
             ((value,) for value in LAUNCH_GIFT_CODE_HASHES),
+        )
+        connection.executemany(
+            "DELETE FROM gift_codes WHERE code_hash = ? AND redeemed_by_account_id IS NULL",
+            ((value,) for value in REVOKED_GIFT_CODE_HASHES),
         )
         connection.execute(
             """
