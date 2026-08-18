@@ -6,6 +6,7 @@ import { authIsConfigured, getSupabaseBrowserClient } from "../lib/supabase-brow
 
 type Mode = "video" | "audio";
 type DownloadKind = "single" | "batch";
+const PENDING_GIFT_CODE_KEY = "pachevideo_pending_gift_code";
 type Job = {
   id: string;
   token: string;
@@ -134,6 +135,7 @@ export default function DownloaderApp() {
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const pollFailures = useRef(0);
+  const pendingGiftRedeeming = useRef(false);
   const authConfigured = authIsConfigured();
 
   const loadAccount = useCallback(async (token = "") => {
@@ -215,6 +217,31 @@ export default function DownloaderApp() {
       scheduledBatchPolls.clear();
     };
   }, [loadAccount]);
+
+  useEffect(() => {
+    const code = window.sessionStorage.getItem(PENDING_GIFT_CODE_KEY)?.trim();
+    if (!code || !accessToken || !account?.authenticated || pendingGiftRedeeming.current) return;
+
+    pendingGiftRedeeming.current = true;
+    window.sessionStorage.removeItem(PENDING_GIFT_CODE_KEY);
+    void (async () => {
+      try {
+        const response = await fetch("/api/gifts/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ code }),
+        });
+        const updated = (await readJson(response)) as Account;
+        setAccount(updated);
+        setGiftCode("");
+        setGiftMessage("Código aplicado: Video Pro queda activo sin vencimiento.");
+      } catch (error) {
+        setGiftMessage(error instanceof Error ? error.message : "No pudimos aplicar el código.");
+      } finally {
+        pendingGiftRedeeming.current = false;
+      }
+    })();
+  }, [accessToken, account?.authenticated]);
 
   useEffect(() => {
     if (account?.plan === "pro" && accessToken) {
@@ -460,6 +487,8 @@ export default function DownloaderApp() {
     setAuthBusy(true);
     setAuthMessage("");
     setRegistrationPrompt("");
+    const pendingGiftCode = giftCode.trim().toUpperCase().replace(/\s+/g, "");
+    if (pendingGiftCode) window.sessionStorage.setItem(PENDING_GIFT_CODE_KEY, pendingGiftCode);
     const result = await Promise.race([
       auth.auth.signInWithOtp({
         email: loginEmail.trim(),
@@ -632,9 +661,20 @@ export default function DownloaderApp() {
                   required
                 />
                 <button type="submit" disabled={authBusy || !authConfigured}>
-                  {authBusy ? "Enviando…" : "Continuar"}
+                  {authBusy ? "Enviando…" : giftCode.trim() ? "Crear cuenta y activar" : "Continuar"}
                 </button>
               </div>
+              <label className="account-email-label" htmlFor="registration-gift-code">Código de invitación <small>(opcional)</small></label>
+              <input
+                id="registration-gift-code"
+                type="text"
+                autoComplete="off"
+                placeholder="PV-GIFT-..."
+                value={giftCode}
+                onChange={(event) => setGiftCode(event.target.value)}
+                disabled={authBusy}
+              />
+              <small className="account-auth-message">¿Tenés un código? Pegalo ahora: se activará automáticamente después de confirmar tu email.</small>
               {registrationPrompt && <small className="account-auth-warning" role="alert">{registrationPrompt}</small>}
               {authMessage && <small className="account-auth-message" role="status">{authMessage}</small>}
             </form>

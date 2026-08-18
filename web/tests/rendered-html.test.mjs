@@ -92,6 +92,9 @@ test("downloader recovers automatically without a manual retry control", async (
   assert.match(source, /Ingresá con tu email/);
   assert.match(source, /Continuar/);
   assert.match(source, /\/api\/gifts\/redeem/);
+  assert.match(source, /PENDING_GIFT_CODE_KEY/);
+  assert.match(source, /Crear cuenta y activar/);
+  assert.match(source, /registration-gift-code/);
   assert.match(source, /function BroSeal/);
   assert.match(source, /function MageSeal/);
   assert.match(source, /account\?\.proBadge === "bro"/);
