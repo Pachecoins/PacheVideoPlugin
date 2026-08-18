@@ -129,19 +129,6 @@ export default function DownloaderApp() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const nextAccount = (await readJson(response)) as Account;
-      // Continuing with an authenticated account is the concise acceptance
-      // flow shown next to the email field. There is no separate checkbox.
-      if (token && nextAccount.authenticated && !nextAccount.termsAccepted) {
-        const acceptance = await fetch("/api/account/terms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: "{}",
-        });
-        if (acceptance.ok) {
-          setAccount((await readJson(acceptance)) as Account);
-          return;
-        }
-      }
       setAccount(nextAccount);
     } catch {
       setFormError("No pudimos inicializar tu cuenta. Recargá la página.");
@@ -309,11 +296,6 @@ export default function DownloaderApp() {
       setFormError("Tu cuenta se está preparando automáticamente.");
       return;
     }
-    if (account.authenticated && !account.termsAccepted) {
-      setFormError("Aceptá los Términos y la Política de Privacidad para continuar.");
-      document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
     if (mode === "video" && account.plan !== "pro" && account.freeVideosRemaining <= 0) {
       setFormError(account.authenticated
         ? `Ya usaste tus ${account.freeVideoLimit} videos gratis. Activá Video Pro para continuar.`
@@ -452,11 +434,6 @@ export default function DownloaderApp() {
       setRegistrationPrompt("Ingresá con tu email antes de activar Video Pro.");
       document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => document.querySelector<HTMLInputElement>("#account-email")?.focus(), 250);
-      return;
-    }
-    if (!account.termsAccepted) {
-      setFormError("Aceptá los Términos y la Política de Privacidad para continuar.");
-      document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     try {
@@ -664,7 +641,6 @@ export default function DownloaderApp() {
               </div>
               {registrationPrompt && <small className="account-auth-warning" role="alert">{registrationPrompt}</small>}
               {authMessage && <small className="account-auth-message" role="status">{authMessage}</small>}
-              <small className="account-legal-note">Al continuar, aceptás los <Link href="/terminos" target="_blank">Términos</Link> y la <Link href="/privacidad" target="_blank">Política de Privacidad</Link>.</small>
             </form>
           )}
           {!authConfigured && <small>Registro preparado · falta conectar el servicio de email.</small>}
@@ -956,11 +932,6 @@ export default function DownloaderApp() {
             </article>
           </div>
         </section>}
-        <footer className="legal-links" aria-label="Información legal">
-          <Link href="/terminos">Términos</Link>
-          <Link href="/privacidad">Privacidad</Link>
-          <Link href="/dmca">Copyright</Link>
-        </footer>
       </section>
     </main>
   );

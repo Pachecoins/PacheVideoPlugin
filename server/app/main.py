@@ -1243,7 +1243,6 @@ def accept_terms(request: Request) -> dict[str, object]:
 @app.post("/api/billing/subscriptions")
 def start_subscription(payload: StartSubscription, request: Request) -> dict[str, object]:
     current = require_registered_account(request)
-    require_terms_accepted(current)
     email = str(current["email"] or "").strip().lower()
     if effective_plan(current) == "pro":
         raise HTTPException(status_code=409, detail="Esta cuenta ya tiene Video Pro activo")
@@ -1340,7 +1339,6 @@ async def mercado_pago_webhook(request: Request) -> dict[str, bool]:
 def redeem_gift_code(payload: RedeemGiftCode, request: Request) -> dict[str, object]:
     """Redeem a launch gift exactly once for the signed-in recipient."""
     current = require_registered_account(request)
-    require_terms_accepted(current)
     code = payload.code.strip().upper().replace(" ", "")
     if not code.startswith("PV-GIFT-") or len(code) > 80:
         raise HTTPException(status_code=400, detail="El código de regalo no es válido")
@@ -1532,8 +1530,6 @@ def create_job(payload: CreateJob, request: Request) -> dict[str, object]:
     consume_rate_limit(client)
     account = require_account(request)
     plan = effective_plan(account)
-    if account["auth_provider_id"]:
-        require_terms_accepted(account)
     consume_account_rate_limit(account["id"])
     enforce_account_job_capacity(account["id"], plan)
     enforce_active_job_capacity()
@@ -1557,7 +1553,6 @@ def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
     account = require_account(request)
     if effective_plan(account) != "pro":
         raise HTTPException(status_code=403, detail="Las listas de enlaces son una función de Video Pro")
-    require_terms_accepted(account)
     consume_account_rate_limit(account["id"])
     enforce_account_job_capacity(account["id"], "pro")
     validate_request_identity(payload.requestId, payload.requestToken)

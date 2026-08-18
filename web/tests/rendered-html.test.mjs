@@ -53,7 +53,7 @@ test("legacy Pro page no longer exposes a demo entitlement", async () => {
   assert.equal(response.headers.get("location"), "/app#planes");
 });
 
-test("serves public legal pages and records explicit terms acceptance", async () => {
+test("keeps public legal reference pages available without showing legal gates in the app", async () => {
   for (const [path, title] of [["/terminos", "Términos de uso"], ["/privacidad", "Política de privacidad"], ["/dmca", "Reclamos de copyright"]]) {
     const response = await render(path);
     assert.equal(response.status, 200);
@@ -64,11 +64,7 @@ test("serves public legal pages and records explicit terms acceptance", async ()
   assert.equal(legacyLegal.headers.get("location"), "/terminos");
 
   const source = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
-  const route = await readFile(new URL("../app/api/account/terms/route.ts", import.meta.url), "utf8");
-  assert.match(source, /Al continuar, aceptás los/);
-  assert.match(source, /\/api\/account\/terms/);
-  assert.match(source, /href="\/terminos"/);
-  assert.match(route, /\/api\/account\/terms/);
+  assert.doesNotMatch(source, /Aceptar y continuar|Al continuar, aceptás los|terms-form|legal-links/);
 });
 
 test("downloader recovers automatically without a manual retry control", async () => {
