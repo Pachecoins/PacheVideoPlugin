@@ -36,7 +36,8 @@ test("server-renders the downloader at /app", async () => {
   assert.match(html, /Audio sin consumir créditos/);
   assert.match(html, /Para descargas más rápidas, actualizate a Video Pro/);
   assert.match(html, /2K, 4K, máxima calidad, listas de enlaces y procesamiento prioritario/);
-  assert.match(html, /Suscribirme por \$9\.999,99/);
+  assert.match(html, /solo por invitación/);
+  assert.match(html, /Activación mediante código/);
   assert.match(html, /PacheVideo para Windows/);
   assert.match(html, /Instalalo para máximo rendimiento/);
   assert.match(html, /Descargar para Windows/);
@@ -83,8 +84,8 @@ test("downloader recovers automatically without a manual retry control", async (
   assert.match(source, /Lista Pro/);
   assert.match(source, /Hasta 20 enlaces/);
   assert.match(source, /account\.plan !== "pro"/);
-  assert.match(source, /\/api\/billing\/subscription/);
-  assert.match(await readFile(new URL("../app/api/billing/subscription/route.ts", import.meta.url), "utf8"), /new URL\("\/app", request\.url\)/);
+  assert.doesNotMatch(source, /\/api\/billing\/subscription|Suscribirme por|\$9\.999,99/);
+  assert.match(await readFile(new URL("../app/api/billing/subscription/route.ts", import.meta.url), "utf8"), /código de invitación/);
   assert.match(source, /account\.plan === "pro"/);
   assert.match(source, /signInWithOtp/);
   assert.match(source, /shouldCreateUser: true/);

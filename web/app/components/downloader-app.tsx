@@ -435,37 +435,6 @@ export default function DownloaderApp() {
     await (downloadKind === "batch" ? startBatchDownload() : startDownload());
   }
 
-  async function startSubscription() {
-    setFormError("");
-    setRegistrationPrompt("");
-    if (!account) {
-      setFormError("Tu cuenta se está preparando automáticamente.");
-      return;
-    }
-    if (account.plan === "pro") return;
-    if (!account.authenticated || !accessToken) {
-      setRegistrationPrompt("Ingresá con tu email antes de activar Video Pro.");
-      document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      window.setTimeout(() => document.querySelector<HTMLInputElement>("#account-email")?.focus(), 250);
-      return;
-    }
-    try {
-      const response = await fetch("/api/billing/subscription", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: "{}",
-      });
-      const payload = await readJson(response) as { checkoutUrl?: string };
-      if (!payload.checkoutUrl) throw new Error("No pudimos abrir el pago");
-      window.location.assign(payload.checkoutUrl);
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "No pudimos iniciar la suscripción");
-    }
-  }
-
   async function requestAccessLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const auth = getSupabaseBrowserClient();
@@ -547,7 +516,8 @@ export default function DownloaderApp() {
 
   function focusRegistration() {
     document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    window.setTimeout(() => document.querySelector<HTMLInputElement>("#account-email")?.focus(), 250);
+    const field = account?.authenticated ? "#gift-code" : "#account-email";
+    window.setTimeout(() => document.querySelector<HTMLInputElement>(field)?.focus(), 250);
   }
 
   const batchBusy = batchJobs.some((item) => !["complete", "error"].includes(item.status));
@@ -616,6 +586,7 @@ export default function DownloaderApp() {
               {!proCandidate && (
                 <form className="gift-form" onSubmit={redeemGiftCode}>
                   <input
+                    id="gift-code"
                     aria-label="Código de regalo Video Pro"
                     placeholder="Código de regalo"
                     value={giftCode}
@@ -751,21 +722,21 @@ export default function DownloaderApp() {
               <strong>{proCandidate ? "Video Pro activo" : "Video Pro"}</strong>
               <span>{proCandidate ? "Máxima velocidad, calidad y listas de hasta 20 enlaces habilitadas." : "2K, 4K, máxima calidad, listas de enlaces y procesamiento prioritario."}</span>
             </div>
-            {!proCandidate && <button className="pro-preview-link" type="button" onClick={() => void startSubscription()}>Suscribirme</button>}
+            {!proCandidate && <span className="pro-preview-link">Solo por invitación</span>}
           </div>
 
           <button
             className="primary-action"
             type={videoQuotaExhausted ? "button" : "submit"}
             disabled={!account || busy || serverOnline === false}
-            onClick={videoQuotaExhausted ? () => account?.authenticated ? void startSubscription() : focusRegistration() : undefined}
+            onClick={videoQuotaExhausted ? focusRegistration : undefined}
           >
             {!account
               ? "Preparando tu cuenta…"
               : busy
               ? "Preparando…"
               : videoQuotaExhausted
-                ? account?.authenticated ? "Activar Video Pro para continuar" : "Registrarme y obtener 5 videos"
+                ? account?.authenticated ? "Ingresar código de invitación" : "Registrarme y obtener 5 videos"
                 : downloadKind === "batch" ? "Preparar lista" : "Preparar descarga"} <span>→</span>
           </button>
           {!proCandidate && (
@@ -904,7 +875,7 @@ export default function DownloaderApp() {
           <div className="section-heading">
             <span>PLANES SIMPLES</span>
             <h2 id="plans-title">Elegí cómo querés descargar</h2>
-            <p>Creá tu cuenta gratis y recibí 5 videos hasta 1080p. Pasate a Video Pro para 2K, 4K y máxima calidad.</p>
+            <p>Creá tu cuenta gratis y recibí 5 videos hasta 1080p. Video Pro se habilita únicamente por invitación.</p>
           </div>
 
           <div className="plans-grid">
@@ -925,7 +896,7 @@ export default function DownloaderApp() {
             <article className="plan-card featured">
               <span className="popular-pill">MÁS ELEGIDO</span>
               <span className="plan-name">PACHEVIDEO PRO</span>
-              <div className="plan-price"><strong>$9.999,99</strong><span>ARS / mes</span></div>
+              <div className="plan-price"><strong>Pro</strong><span>solo por invitación</span></div>
               <ul>
                 <li><i aria-hidden="true">✓</i> Audio gratis</li>
                 <li><i aria-hidden="true">✓</i> Video en 2K, 4K o máxima calidad</li>
@@ -936,7 +907,7 @@ export default function DownloaderApp() {
               </ul>
               {proCandidate
                 ? <span className="plan-status pro-status">Video Pro activo</span>
-                : <button className="plan-status pro-status" type="button" onClick={() => void startSubscription()}>Suscribirme por $9.999,99</button>}
+                : <span className="plan-status pro-status">Activación mediante código</span>}
             </article>
           </div>
         </section>}

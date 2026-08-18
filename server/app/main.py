@@ -1256,47 +1256,7 @@ def accept_terms(request: Request) -> dict[str, object]:
 
 @app.post("/api/billing/subscriptions")
 def start_subscription(payload: StartSubscription, request: Request) -> dict[str, object]:
-    current = require_registered_account(request)
-    email = str(current["email"] or "").strip().lower()
-    if effective_plan(current) == "pro":
-        raise HTTPException(status_code=409, detail="Esta cuenta ya tiene Video Pro activo")
-    if not MP_ACCESS_TOKEN:
-        raise HTTPException(status_code=503, detail="Falta conectar la credencial privada de Mercado Pago")
-    back_url = subscription_back_url(payload)
-
-    provider = mercado_pago_request(
-        "POST",
-        "/preapproval",
-        {
-            "reason": "PacheVideo Pro mensual",
-            "external_reference": current["id"],
-            "payer_email": email,
-            "auto_recurring": {
-                "frequency": 1,
-                "frequency_type": "months",
-                "transaction_amount": MP_SUBSCRIPTION_AMOUNT,
-                "currency_id": MP_SUBSCRIPTION_CURRENCY,
-            },
-            "back_url": back_url,
-            "status": "pending",
-        },
-    )
-    provider_id = str(provider.get("id") or "")
-    checkout_url = str(provider.get("init_point") or provider.get("sandbox_init_point") or "")
-    if not provider_id or not checkout_url.startswith("https://"):
-        raise HTTPException(status_code=502, detail="No pudimos iniciar la suscripción")
-    now = time.time()
-    with database() as connection:
-        connection.execute(
-            """
-            INSERT INTO subscriptions (id, account_id, provider_subscription_id, status, email, created_at, updated_at)
-            VALUES (?, ?, ?, 'pending', ?, ?, ?)
-            ON CONFLICT(provider_subscription_id) DO UPDATE SET
-                status = 'pending', email = excluded.email, updated_at = excluded.updated_at
-            """,
-            (uuid4().hex, current["id"], provider_id, email, now, now),
-        )
-    return {"checkoutUrl": checkout_url}
+    raise HTTPException(status_code=404, detail="Video Pro se activa únicamente con un código de invitación")
 
 
 @app.post("/api/billing/mercadopago/webhook")
