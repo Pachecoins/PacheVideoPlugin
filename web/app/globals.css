@@ -40,13 +40,16 @@ a, summary { cursor: pointer; }
 }
 
 .topbar { max-width: 1180px; margin: auto; padding: 24px 28px; display: flex; align-items: center; justify-content: space-between; }
-.desktop-promo { width: min(760px, calc(100% - 32px)); min-height: 64px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; position: relative; margin: 4px auto -24px; padding: 11px 14px; color: #f8e8bd; border: 1px solid rgba(244,191,84,.5); border-radius: 15px; background: linear-gradient(105deg, rgba(119,78,15,.43), rgba(33,24,13,.88)); box-shadow: 0 14px 34px rgba(120,77,13,.18); }
+.desktop-promo { width: min(760px, calc(100% - 32px)); min-height: 64px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; position: relative; margin: 4px auto -24px; padding: 11px 14px; color: #f8e8bd; border: 1px solid rgba(244,191,84,.5); border-radius: 15px; background: linear-gradient(105deg, rgba(119,78,15,.43), rgba(33,24,13,.88)); box-shadow: 0 14px 34px rgba(120,77,13,.18); }
 .desktop-promo:hover { border-color: rgba(255,226,154,.9); background: linear-gradient(105deg, rgba(143,93,15,.55), rgba(43,29,13,.94)); }
 .desktop-promo-icon { width: 34px; height: 34px; display: grid; place-items: center; color: #2a1907; border-radius: 10px; background: linear-gradient(135deg, var(--gold-bright), var(--gold)); font-size: 21px; font-weight: 900; }
 .desktop-promo span:not(.desktop-promo-icon) { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .desktop-promo b { color: #fff0c6; font-size: 12px; }
 .desktop-promo small { color: #cfbd91; font-size: 10px; line-height: 1.35; }
 .desktop-promo button { min-height: 34px; display: inline-flex; align-items: center; gap: 8px; padding: 0 11px; color: #2a1907; border: 0; border-radius: 9px; background: linear-gradient(135deg, var(--gold-bright), var(--gold)); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.desktop-promo .desktop-download-primary { min-height: 34px; display: inline-flex; align-items: center; gap: 8px; padding: 0 11px; color: #2a1907; border: 0; border-radius: 9px; background: linear-gradient(135deg, var(--gold-bright), var(--gold)); font-size: 10px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.desktop-promo .desktop-download-primary:hover { color: #2a1907; filter: brightness(1.08); }
+.desktop-promo .desktop-mac-note { max-width: 120px; color: #cfbd91; font-size: 9px; }
 .desktop-promo i { font-style: normal; font-size: 16px; }
 .desktop-download-menu { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 2px; }
 .desktop-download-menu a, .desktop-download-pending { min-height: 44px; display: flex; flex-direction: column; justify-content: center; padding: 8px 11px; color: #fff0c8; border: 1px solid rgba(255,225,151,.31); border-radius: 10px; background: rgba(11,8,5,.45); text-decoration: none; font-size: 11px; font-weight: 850; }
@@ -397,7 +400,8 @@ button.plan-status { cursor: pointer; }
 @media (max-width: 600px) {
   .topbar { padding: 18px; }
   .desktop-promo { grid-template-columns: 34px minmax(0, 1fr); margin-top: 1px; margin-bottom: -12px; }
-  .desktop-promo button { grid-column: 1 / -1; width: 100%; justify-content: center; }
+  .desktop-promo button, .desktop-promo .desktop-download-primary { grid-column: 1 / -1; width: 100%; justify-content: center; }
+  .desktop-promo .desktop-mac-note { grid-column: 1 / -1; max-width: none; text-align: center; }
   .desktop-download-menu { grid-template-columns: 1fr; }
   .server-pill { font-size: 0; padding: 9px; }
   .server-pill i { margin: 0; }

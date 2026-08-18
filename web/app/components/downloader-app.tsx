@@ -115,7 +115,6 @@ export default function DownloaderApp() {
   const [giftCode, setGiftCode] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [giftBusy, setGiftBusy] = useState(false);
-  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
   const [startingDownload, setStartingDownload] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -578,14 +577,9 @@ export default function DownloaderApp() {
 
       <section className="desktop-promo" aria-label="Descargar PacheVideo Desktop">
         <span className="desktop-promo-icon" aria-hidden="true">↧</span>
-        <span><b>PacheVideo Desktop Pro</b><small>Instalá la app para máximo rendimiento en tus descargas.</small></span>
-        <button type="button" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((open) => !open)}>Descargar app <i aria-hidden="true">→</i></button>
-        {desktopMenuOpen && (
-          <div className="desktop-download-menu" role="menu">
-            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.3.1/PacheVideo-Setup-Windows-x64.exe">Windows <small>Instalador .exe</small></a>
-            <a role="menuitem" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.1/PacheVideo-Install-macOS.command">Mac <small>Instalador por Terminal</small></a>
-          </div>
-        )}
+        <span><b>PacheVideo para Windows</b><small>Instalalo para máximo rendimiento en tus descargas.</small></span>
+        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.3.1/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
+        <small className="desktop-mac-note">¿Usás Mac? Consultanos para instalarlo.</small>
       </section>
 
       <section className="app-hero" id="inicio">
