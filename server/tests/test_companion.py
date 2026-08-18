@@ -42,6 +42,10 @@ class CompanionReliabilityTests(unittest.TestCase):
             "best[ext=mp4][height<=1080]/best[height<=1080]/best",
         )
         self.assertEqual(
+            selector_for_attempt("https://youtu.be/test", "audio", "320", 1),
+            "best[ext=mp4]/best",
+        )
+        self.assertEqual(
             selector_for_attempt("https://notyoutube.com/watch?v=test", "video", "max", 1),
             "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
         )

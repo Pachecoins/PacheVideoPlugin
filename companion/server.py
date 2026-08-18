@@ -25,7 +25,7 @@ import yt_dlp
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PACHEVIDEO_PORT", "18765"))
 OUTPUT_FOLDER = Path(os.environ.get("PACHEVIDEO_OUTPUT", "~/Downloads/PacheVideo")).expanduser().resolve()
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 DOWNLOAD_ATTEMPTS = max(1, int(os.environ.get("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "10")))
 RETRY_BASE_SECONDS = max(0.0, float(os.environ.get("PACHEVIDEO_RETRY_BASE_SECONDS", "1.5")))
 RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.environ.get("PACHEVIDEO_RETRY_MAX_SECONDS", "20")))
@@ -264,6 +264,10 @@ def selector_for_attempt(raw_url: str, mode: str, quality: str, attempt: int) ->
     attempts retain the same safe fallback instead of retrying a denied URL.
     """
     if is_youtube_source(raw_url):
+        if mode == "audio":
+            # YouTube can reject the audio-only DASH representation while its
+            # progressive MP4 remains playable. FFmpeg then extracts the MP3.
+            return "best[ext=mp4]/best"
         return compatibility_selector(mode, quality)
     if attempt > 1 and mode == "video":
         return compatibility_selector(mode, quality)
