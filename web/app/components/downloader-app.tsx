@@ -28,7 +28,7 @@ type Account = {
   freeVideoLimit: number;
   freeVideosRemaining: number;
   subscriptionStatus?: string | null;
-  proBadge?: "bro" | null;
+  proBadge?: "bro" | "mage" | null;
   authenticated: boolean;
   email?: string | null;
   termsAccepted: boolean;
@@ -94,6 +94,13 @@ function BroSeal() {
   return <span className="bro-seal" aria-label="Reconocimiento especial: Bro">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.1 9.1c.6-1.8 1.5-3.4 2.8-4.9l1.4 1.1-1.1 2.1 1.8 1.1 2.1-1.3c1.6.9 2.8 2.2 3.7 3.8l-1.5 1.2 1.6 1.5c-.8 2.9-2.8 4.8-5.9 5.7l-3.4-.8-3.2-2.8.6-2.1-1.7-1.6 1.8-2.9 2.4.8Z" /><path d="M10.4 12.2c1.2-.6 2.5-.7 3.8-.2" /></svg>
     <span>BRO</span>
+  </span>;
+}
+
+function MageSeal() {
+  return <span className="mage-seal" aria-label="Reconocimiento especial: Mago">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 8-10 8 10H4Z" /><path d="M5.5 13h13v3.2c-3.8 1.9-9.2 1.9-13 0V13ZM17.7 6.5l2.6-1.2M18.6 9.2l2.7.8" /><rect x="14.8" y="15.2" width="4.4" height="5.6" rx=".7" transform="rotate(12 17 18)" /><path d="m16.3 16.8 1.8 2.1" /></svg>
+    <span>MAGO</span>
   </span>;
 }
 
@@ -578,6 +585,7 @@ export default function DownloaderApp() {
                 : "Ingresá con tu email"}</h2>
             {proCandidate && <span className="pro-badge">VIDEO PRO · ACTIVO</span>}
             {account?.proBadge === "bro" && <BroSeal />}
+            {account?.proBadge === "mage" && <MageSeal />}
             <p>{account === null
               ? "Estamos comprobando si ya habías iniciado sesión en este dispositivo."
               : account.authenticated

@@ -138,6 +138,8 @@ REVOKED_GIFT_CODE_HASHES = (
 # plain code never lives in this mapping, only its SHA-256 digest.
 GIFT_CODE_BADGES = {
     "995d7971a26cc2b523b1866f3f00c46555d414b1bcf501e19d2039b93a1968d4": "bro",
+    "e4b18f9882e3d2784728f742d43588c8f716a9a81c2c12c51da067b3a5cb9d6a": "mage",
+    "0444f6098402cf7c5876b81a5e3618e4775432f25c79d70a591216b7770c7d3a": "mage",
 }
 
 FREE_VIDEO_QUALITIES = {"480", "720", "1080"}
