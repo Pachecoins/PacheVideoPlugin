@@ -25,10 +25,10 @@ test("server-renders the downloader at /app", async () => {
   assert.equal(response.status, 200);
 
   const html = await response.text();
-  assert.match(html, /<title>PacheVideo App/);
+  assert.match(html, /<title>PacheVideo · Descargador multimedia/);
   assert.match(html, /logo\.png/);
   assert.match(html, /Descargá\. Convertí\./);
-  assert.match(html, /Preparar descarga/);
+  assert.match(html, /Preparando tu cuenta/);
   assert.match(html, />Inicio<\/a>/);
   assert.match(html, /Recuperando tu sesión/);
   assert.match(html, /Comprobando cuenta/);
