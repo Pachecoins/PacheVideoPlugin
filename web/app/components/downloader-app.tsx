@@ -28,6 +28,7 @@ type Account = {
   freeVideoLimit: number;
   freeVideosRemaining: number;
   subscriptionStatus?: string | null;
+  proBadge?: "bro" | null;
   authenticated: boolean;
   email?: string | null;
   termsAccepted: boolean;
@@ -87,6 +88,13 @@ function NetworkIcon({ network }: { network: HistoryItem["network"] }) {
   if (network === "facebook") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.7 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V3.9c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4V10H8v3h2.8v8h2.9Z" /></svg>;
   if (network === "youtube") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 7.2a2.8 2.8 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.5.5a2.8 2.8 0 0 0-2 2C2 8.9 2 12 2 12s0 3.1.5 4.8a2.8 2.8 0 0 0 2 2c1.7.5 7.5.5 7.5.5s5.8 0 7.5-.5a2.8 2.8 0 0 0 2-2C22 15.1 22 12 22 12s0-3.1-.5-4.8ZM10 15.5v-7l6 3.5-6 3.5Z" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5S14.4 18.1 12 20.5C9.6 18.1 8.4 15.3 8.4 12S9.6 5.9 12 3.5Z" /></svg>;
+}
+
+function BroSeal() {
+  return <span className="bro-seal" aria-label="Reconocimiento especial: Bro">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.1 9.1c.6-1.8 1.5-3.4 2.8-4.9l1.4 1.1-1.1 2.1 1.8 1.1 2.1-1.3c1.6.9 2.8 2.2 3.7 3.8l-1.5 1.2 1.6 1.5c-.8 2.9-2.8 4.8-5.9 5.7l-3.4-.8-3.2-2.8.6-2.1-1.7-1.6 1.8-2.9 2.4.8Z" /><path d="M10.4 12.2c1.2-.6 2.5-.7 3.8-.2" /></svg>
+    <span>BRO</span>
+  </span>;
 }
 
 function networkLabel(network: HistoryItem["network"]) {
@@ -569,6 +577,7 @@ export default function DownloaderApp() {
                 ? `Hola, ${account.email}`
                 : "Ingresá con tu email"}</h2>
             {proCandidate && <span className="pro-badge">VIDEO PRO · ACTIVO</span>}
+            {account?.proBadge === "bro" && <BroSeal />}
             <p>{account === null
               ? "Estamos comprobando si ya habías iniciado sesión en este dispositivo."
               : account.authenticated

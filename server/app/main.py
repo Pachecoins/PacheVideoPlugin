@@ -134,6 +134,12 @@ REVOKED_GIFT_CODE_HASHES = (
     "39701b60e505e2107848862b6449e153ef25ca25e67c3e1188ce28393a0ee9a0",
 )
 
+# Some invitations carry a permanent, account-bound recognition seal. The
+# plain code never lives in this mapping, only its SHA-256 digest.
+GIFT_CODE_BADGES = {
+    "995d7971a26cc2b523b1866f3f00c46555d414b1bcf501e19d2039b93a1968d4": "bro",
+}
+
 FREE_VIDEO_QUALITIES = {"480", "720", "1080"}
 # An anonymous session exists only to preserve the UI. Download credits are
 # granted after the email identity is verified, never by minting cookies.
@@ -312,6 +318,7 @@ def initialize_database() -> None:
             "pro_gift": "ALTER TABLE accounts ADD COLUMN pro_gift INTEGER NOT NULL DEFAULT 0",
             "terms_accepted_at": "ALTER TABLE accounts ADD COLUMN terms_accepted_at REAL",
             "terms_version": "ALTER TABLE accounts ADD COLUMN terms_version TEXT",
+            "pro_badge": "ALTER TABLE accounts ADD COLUMN pro_badge TEXT",
         }
         for column, statement in account_migrations.items():
             if column not in account_columns:
@@ -345,6 +352,16 @@ def initialize_database() -> None:
             "DELETE FROM gift_codes WHERE code_hash = ? AND redeemed_by_account_id IS NULL",
             ((value,) for value in REVOKED_GIFT_CODE_HASHES),
         )
+        for code_hash, badge in GIFT_CODE_BADGES.items():
+            connection.execute(
+                """
+                UPDATE accounts SET pro_badge = ?
+                WHERE id IN (
+                    SELECT redeemed_by_account_id FROM gift_codes WHERE code_hash = ?
+                ) AND (pro_badge IS NULL OR pro_badge = '')
+                """,
+                (badge, code_hash),
+            )
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS subscriptions (
@@ -662,6 +679,7 @@ def account_public(account: sqlite3.Row) -> dict[str, object]:
         "subscriptionStatus": subscription["status"] if subscription else None,
         "authenticated": bool(account["auth_provider_id"]),
         "email": account["email"],
+        "proBadge": account["pro_badge"],
         "termsAccepted": bool(account["terms_accepted_at"] and account["terms_version"] == TERMS_VERSION),
     }
 
@@ -1352,6 +1370,7 @@ def redeem_gift_code(payload: RedeemGiftCode, request: Request) -> dict[str, obj
     if not code.startswith("PV-GIFT-") or len(code) > 80:
         raise HTTPException(status_code=400, detail="El código de regalo no es válido")
     code_hash = sha256(code.encode()).hexdigest()
+    badge = GIFT_CODE_BADGES.get(code_hash)
     now = time.time()
     with database() as connection:
         gift = connection.execute(
@@ -1373,8 +1392,12 @@ def redeem_gift_code(payload: RedeemGiftCode, request: Request) -> dict[str, obj
         if not claimed:
             raise HTTPException(status_code=409, detail="Este código de regalo ya fue usado")
         connection.execute(
-            "UPDATE accounts SET plan = 'pro', pro_gift = 1, updated_at = ? WHERE id = ?",
-            (now, current["id"]),
+            """
+            UPDATE accounts
+            SET plan = 'pro', pro_gift = 1, pro_badge = COALESCE(?, pro_badge), updated_at = ?
+            WHERE id = ?
+            """,
+            (badge, now, current["id"]),
         )
         updated = connection.execute("SELECT * FROM accounts WHERE id = ?", (current["id"],)).fetchone()
     return account_public(updated)

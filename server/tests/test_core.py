@@ -957,6 +957,43 @@ class BillingSessionTests(unittest.TestCase):
         self.assertEqual(account["pro_gift"], 1)
         self.assertEqual(repeated.exception.status_code, 409)
 
+    def test_special_gift_code_adds_account_badge(self) -> None:
+        request = backend.Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/gifts/redeem",
+                "headers": [(b"authorization", b"Bearer bro-token")],
+            }
+        )
+        code = "PV-GIFT-BRO-TEST-7A9C"
+        code_hash = backend.sha256(code.encode()).hexdigest()
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(backend, "GIFT_CODE_BADGES", {code_hash: "bro"}),
+                patch.object(
+                    backend,
+                    "supabase_user_from_request",
+                    return_value={"id": "bro-recipient", "email": "bro@example.com"},
+                ),
+            ):
+                backend.initialize_database()
+                account = backend.registered_account_from_request(request)
+                with backend.database() as connection:
+                    connection.execute("INSERT INTO gift_codes (code_hash) VALUES (?)", (code_hash,))
+                redeemed = backend.redeem_gift_code(backend.RedeemGiftCode(code=code), request)
+                with backend.database() as connection:
+                    updated = connection.execute(
+                        "SELECT pro_badge FROM accounts WHERE id = ?", (account["id"],)
+                    ).fetchone()
+
+        self.assertEqual(redeemed["proBadge"], "bro")
+        self.assertEqual(updated["pro_badge"], "bro")
+
     def test_pro_history_keeps_network_and_thumbnail_metadata(self) -> None:
         request = backend.Request(
             {

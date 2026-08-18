@@ -77,6 +77,8 @@ a, summary { cursor: pointer; }
 .account-kicker { display: block; margin-bottom: 6px; color: #c77df5; font: 800 9px/1 var(--font-geist-mono), monospace; letter-spacing: .15em; }
 .account-panel h2 { margin: 0; overflow-wrap: anywhere; color: #f2edf5; font-size: 15px; letter-spacing: -.01em; }
 .pro-badge { width: fit-content; display: inline-flex; align-items: center; min-height: 22px; margin-top: 9px; padding: 0 8px; color: #241609; border: 1px solid rgba(255,236,177,.72); border-radius: 999px; background: linear-gradient(135deg, var(--gold-bright), var(--gold)); box-shadow: 0 4px 16px rgba(242,182,62,.2); font: 850 8px/1 var(--font-geist-mono), monospace; letter-spacing: .12em; }
+.bro-seal { width: fit-content; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; margin-top: 8px; padding: 0 10px 0 7px; color: #ffe8a4; border: 1px solid rgba(255,214,102,.62); border-radius: 999px; background: linear-gradient(135deg, rgba(97,67,14,.92), rgba(39,27,5,.96)); box-shadow: inset 0 1px 0 rgba(255,241,180,.24), 0 5px 18px rgba(203,147,29,.26); font: 900 10px/1 var(--font-geist-mono), monospace; letter-spacing: .16em; }
+.bro-seal svg { width: 18px; height: 18px; fill: none; stroke: var(--gold-bright); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .account-panel p { margin: 5px 0 0; color: #8f8795; font-size: 11px; line-height: 1.45; }
 .account-panel > small { grid-column: 1 / -1; color: #9a83aa; font-size: 10px; }
 .account-form { width: min(390px, 100%); display: flex; flex-direction: column; gap: 7px; }

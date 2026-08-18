@@ -92,6 +92,8 @@ test("downloader recovers automatically without a manual retry control", async (
   assert.match(source, /Ingresá con tu email/);
   assert.match(source, /Continuar/);
   assert.match(source, /\/api\/gifts\/redeem/);
+  assert.match(source, /function BroSeal/);
+  assert.match(source, /account\?\.proBadge === "bro"/);
   assert.match(await readFile(new URL("../app/api/gifts/redeem/route.ts", import.meta.url), "utf8"), /\/api\/gifts\/redeem/);
   assert.match(source, /Recuperando tu sesión/);
   assert.match(authSource, /flowType: "implicit"/);
