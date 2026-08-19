@@ -27,7 +27,7 @@ from release import fetch_latest_release, is_newer_release
 
 API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
 CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://pachevideo.com/api").rstrip("/")
-VERSION = "0.5.6"
+VERSION = "0.5.7"
 
 
 def resource_path(name: str) -> Path:
@@ -343,13 +343,14 @@ class PacheVideoApp(ctk.CTk):
         ctk.CTkLabel(footer, text=f"PacheVideo {VERSION}", text_color="#626262").grid(row=0, column=0, sticky="w")
         self.update_button = ctk.CTkButton(
             footer,
-            text="Actualización disponible",
+            text="Buscar actualización",
             width=156,
             fg_color="transparent",
             text_color="#d4af37",
             hover_color="#2b2412",
-            command=self.open_update,
+            command=self.manual_update_check,
         )
+        self.update_button.grid(row=0, column=1, padx=(0, 10), sticky="e")
         ctk.CTkButton(
             footer,
             text="Reconectar",
@@ -536,22 +537,33 @@ class PacheVideoApp(ctk.CTk):
 
         self._run(worker)
 
-    def check_for_update(self) -> None:
-        if self.update_checked:
+    def check_for_update(self, manual: bool = False) -> None:
+        if self.update_checked and not manual:
             return
         self.update_checked = True
+        if manual:
+            self._post(lambda: self.update_button.configure(text="Buscando…", state="disabled"))
         try:
             release = fetch_latest_release()
             if not release:
+                if manual:
+                    self._post(lambda: self.update_button.configure(text="No pudimos comprobar", state="normal"))
                 return
             version, url = release
             if not is_newer_release(version, VERSION):
+                if manual:
+                    self._post(lambda: self.update_button.configure(text="Ya tenés la última", state="normal"))
                 return
             self.update_url = url
-            self._post(lambda: self.update_button.grid(row=0, column=1, padx=(0, 10), sticky="e"))
+            self._post(lambda: self.update_button.configure(text="Actualizar ahora", state="normal", command=self.open_update))
         except Exception:
             # An update check must never affect downloading or startup.
+            if manual:
+                self._post(lambda: self.update_button.configure(text="No pudimos comprobar", state="normal"))
             return
+
+    def manual_update_check(self) -> None:
+        self._run(lambda: self.check_for_update(manual=True))
 
     def open_update(self) -> None:
         if self.update_url:
