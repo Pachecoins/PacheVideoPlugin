@@ -132,10 +132,13 @@ export default function DownloaderApp() {
   const [giftMessage, setGiftMessage] = useState("");
   const [giftBusy, setGiftBusy] = useState(false);
   const [startingDownload, setStartingDownload] = useState(false);
+  const [desktopPairCode, setDesktopPairCode] = useState("");
+  const [desktopPairMessage, setDesktopPairMessage] = useState("");
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const pollFailures = useRef(0);
   const pendingGiftRedeeming = useRef(false);
+  const desktopPairSent = useRef(false);
   const authConfigured = authIsConfigured();
 
   const loadAccount = useCallback(async (token = "") => {
@@ -242,6 +245,34 @@ export default function DownloaderApp() {
       }
     })();
   }, [accessToken, account?.authenticated]);
+
+  // Desktop passes a short-lived, high-entropy pairing code. Remove it from
+  // the visible URL immediately; only the signed-in user can bind it.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("desktopPairing") || "";
+    if (!/^pvpair_[A-Za-z0-9_-]{32,160}$/.test(code)) return;
+    setDesktopPairCode(code);
+    window.history.replaceState(null, document.title, window.location.pathname);
+  }, []);
+
+  useEffect(() => {
+    if (!desktopPairCode || !accessToken || !account?.authenticated || desktopPairSent.current) return;
+    desktopPairSent.current = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/desktop/pair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ code: desktopPairCode }),
+        });
+        await readJson(response);
+        setDesktopPairMessage("Listo: tu cuenta quedó conectada a PacheVideo Desktop. Volvé a la app.");
+      } catch (error) {
+        desktopPairSent.current = false;
+        setDesktopPairMessage(error instanceof Error ? error.message : "No pudimos vincular la app.");
+      }
+    })();
+  }, [desktopPairCode, accessToken, account?.authenticated]);
 
   useEffect(() => {
     if (account?.plan === "pro" && accessToken) {
@@ -598,6 +629,11 @@ export default function DownloaderApp() {
 
       <section className="app-hero" id="inicio">
         <section className={`account-panel ${account?.authenticated ? "signed-in" : ""} ${proCandidate ? "pro-account" : ""}`} id="cuenta" aria-labelledby="account-title">
+          {desktopPairCode && (
+            <p className="account-auth-message" role="status">
+              {desktopPairMessage || (account?.authenticated ? "Conectando PacheVideo Desktop…" : "Ingresá con tu email para conectar PacheVideo Desktop.")}
+            </p>
+          )}
           <div>
             <span className="account-kicker">TU CUENTA</span>
             <h2 id="account-title">{account === null

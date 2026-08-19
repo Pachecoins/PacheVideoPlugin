@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import secrets
 import subprocess
 import sys
 import threading
@@ -14,6 +15,7 @@ import webbrowser
 from tkinter import filedialog
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import quote
 
 import customtkinter as ctk
 from PIL import Image
@@ -24,7 +26,8 @@ from release import fetch_latest_release, is_newer_release
 
 
 API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
-VERSION = "0.5.4"
+CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://pachevideo.com/api").rstrip("/")
+VERSION = "0.5.5"
 
 
 def resource_path(name: str) -> Path:
@@ -40,6 +43,25 @@ def session_token_path() -> Path:
         return Path.home() / "Library" / "Application Support" / "PacheVideo" / "session.token"
     root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
     return root / "PacheVideo" / "session.token"
+
+
+def desktop_token_path() -> Path:
+    return session_token_path().with_name("desktop.token")
+
+
+def read_desktop_token() -> str:
+    try:
+        return desktop_token_path().read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def save_desktop_token(token: str) -> None:
+    path = desktop_token_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(token + "\n", encoding="utf-8")
+    if os.name != "nt":
+        path.chmod(0o600)
 
 
 def helper_token() -> str:
@@ -73,6 +95,37 @@ def api_json(path: str, payload: dict | None = None, timeout: float = 8) -> dict
         raise ConnectionError(str(error.reason)) from error
 
 
+class CloudError(RuntimeError):
+    def __init__(self, status: int, message: str) -> None:
+        self.status = status
+        super().__init__(message)
+
+
+def cloud_json(path: str, token: str, payload: dict | None = None, timeout: float = 10) -> dict:
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = Request(
+        f"{CLOUD_API_URL}{path}",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+        method="POST" if payload is not None else "GET",
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        try:
+            message = json.loads(error.read().decode("utf-8")).get("detail") or "Error de cuenta"
+        except Exception:
+            message = f"Error HTTP {error.code}"
+        raise CloudError(error.code, message) from error
+    except URLError as error:
+        raise ConnectionError(str(error.reason)) from error
+
+
 class PacheVideoApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
@@ -90,10 +143,15 @@ class PacheVideoApp(ctk.CTk):
         self.downloading = False
         self.update_url: str | None = None
         self.update_checked = False
+        self.helper_online = False
+        self.account: dict | None = None
+        self.cloud_token = read_desktop_token()
+        self.pairing_in_progress = False
 
         self._build_ui()
         self.after(50, self._drain_events)
         self.after(150, self.connect_helper)
+        self.after(300, self.refresh_account)
 
     def _build_ui(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -130,8 +188,25 @@ class PacheVideoApp(ctk.CTk):
         self.helper_dot = ctk.CTkLabel(header, text="●", text_color="#e94560", font=ctk.CTkFont(size=18))
         self.helper_dot.grid(row=0, column=2, rowspan=2, padx=(12, 0))
 
+        account_card = ctk.CTkFrame(content, fg_color="#151515", corner_radius=16, border_width=1, border_color="#292929")
+        account_card.grid(row=1, column=0, padx=28, pady=(0, 10), sticky="ew")
+        account_card.grid_columnconfigure(0, weight=1)
+        self.account_title = ctk.CTkLabel(account_card, text="Cuenta no conectada", anchor="w", font=ctk.CTkFont(size=14, weight="bold"))
+        self.account_title.grid(row=0, column=0, padx=18, pady=(15, 3), sticky="ew")
+        self.account_detail = ctk.CTkLabel(
+            account_card,
+            text="Conectá tu cuenta Video Pro para habilitar descargas sin límite de velocidad.",
+            text_color="#a7a7a7", anchor="w", justify="left", wraplength=360,
+        )
+        self.account_detail.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="ew")
+        self.account_button = ctk.CTkButton(
+            account_card, text="Conectar cuenta", width=145, fg_color="#d4af37", text_color="#15110a",
+            hover_color="#e6c65b", command=self.connect_account,
+        )
+        self.account_button.grid(row=0, column=1, rowspan=2, padx=(8, 18), pady=14, sticky="e")
+
         form = ctk.CTkFrame(content, fg_color="#151515", corner_radius=16, border_width=1, border_color="#292929")
-        form.grid(row=1, column=0, padx=28, pady=10, sticky="ew")
+        form.grid(row=2, column=0, padx=28, pady=10, sticky="ew")
         form.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkLabel(form, text="URL del video", anchor="w").grid(
@@ -209,9 +284,15 @@ class PacheVideoApp(ctk.CTk):
             command=self.start_download,
         )
         self.download_button.grid(row=7, column=0, columnspan=2, padx=18, pady=18, sticky="ew")
+        self.speed_note = ctk.CTkLabel(
+            form,
+            text="Plan gratis: hasta 2 MB/s. Con Video Pro descargás a máxima velocidad.",
+            text_color="#b8a45a", justify="center", wraplength=420,
+        )
+        self.speed_note.grid(row=8, column=0, columnspan=2, padx=18, pady=(0, 16), sticky="ew")
 
         progress = ctk.CTkFrame(content, fg_color="#151515", corner_radius=16, border_width=1, border_color="#292929")
-        progress.grid(row=2, column=0, padx=28, pady=10, sticky="ew")
+        progress.grid(row=3, column=0, padx=28, pady=10, sticky="ew")
         progress.grid_columnconfigure(0, weight=1)
         self.status_label = ctk.CTkLabel(
             progress,
@@ -242,8 +323,20 @@ class PacheVideoApp(ctk.CTk):
         )
         self.folder_button.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="ew")
 
+        history_card = ctk.CTkFrame(content, fg_color="#151515", corner_radius=16, border_width=1, border_color="#292929")
+        history_card.grid(row=4, column=0, padx=28, pady=10, sticky="ew")
+        history_card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(history_card, text="Cola e historial local", anchor="w", font=ctk.CTkFont(size=14, weight="bold")).grid(
+            row=0, column=0, padx=18, pady=(16, 3), sticky="ew"
+        )
+        self.queue_label = ctk.CTkLabel(
+            history_card, text="Todavía no hay descargas en esta computadora.", text_color="#929292", anchor="w",
+            justify="left", wraplength=430,
+        )
+        self.queue_label.grid(row=1, column=0, padx=18, pady=(0, 16), sticky="ew")
+
         footer = ctk.CTkFrame(content, fg_color="transparent")
-        footer.grid(row=3, column=0, padx=28, pady=(8, 20), sticky="ew")
+        footer.grid(row=5, column=0, padx=28, pady=(8, 20), sticky="ew")
         footer.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(footer, text=f"PacheVideo {VERSION}", text_color="#626262").grid(row=0, column=0, sticky="w")
         self.update_button = ctk.CTkButton(
@@ -287,9 +380,109 @@ class PacheVideoApp(ctk.CTk):
             self.progress_bar.set(max(0, min(1, progress / 100)))
 
     def set_online(self, online: bool) -> None:
+        self.helper_online = online
         self.helper_dot.configure(text_color="#4caf50" if online else "#e94560")
         if not self.downloading:
-            self.download_button.configure(state="normal" if online else "disabled")
+            pro = bool(self.account and self.account.get("plan") == "pro")
+            self.download_button.configure(state="normal" if online and pro else "disabled")
+
+    def refresh_account(self) -> None:
+        if not self.cloud_token:
+            self._post(lambda: self.show_account(None))
+            return
+
+        def worker() -> None:
+            try:
+                account = cloud_json("/desktop/account", self.cloud_token, timeout=8)
+                self._post(lambda: self.show_account(account))
+            except CloudError as error:
+                if error.status in {401, 403}:
+                    try:
+                        desktop_token_path().unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                    self.cloud_token = ""
+                    self._post(lambda: self.show_account(None, "Volvé a conectar tu cuenta para usar la app."))
+                else:
+                    self._post(lambda: self.show_account(None, "No pudimos verificar tu cuenta. Intentá reconectar."))
+            except Exception:
+                self._post(lambda: self.show_account(None, "No pudimos verificar tu cuenta. Intentá reconectar."))
+
+        self._run(worker)
+
+    def show_account(self, account: dict | None, message: str = "") -> None:
+        self.account = account
+        pro = bool(account and account.get("plan") == "pro")
+        if pro:
+            email = str(account.get("email") or "Cuenta conectada")
+            self.account_title.configure(text="VIDEO PRO ACTIVO", text_color="#d4af37")
+            self.account_detail.configure(text=f"{email} · Máxima velocidad, historial y descargas locales habilitadas.")
+            self.account_button.configure(text="Cuenta conectada", state="disabled", fg_color="#2b2412", text_color="#d4af37")
+            self.speed_note.configure(text="Video Pro activo: máxima velocidad local habilitada.", text_color="#d4af37")
+        else:
+            self.account_title.configure(text="Cuenta Video Pro requerida", text_color="#f0f0f0")
+            self.account_detail.configure(text=message or "Conectá tu cuenta Video Pro para habilitar descargas locales. Plan gratis: hasta 2 MB/s en la web.")
+            self.account_button.configure(text="Conectar cuenta", state="normal", fg_color="#d4af37", text_color="#15110a")
+            self.speed_note.configure(text="Plan gratis: hasta 2 MB/s. Con Video Pro descargás a máxima velocidad.", text_color="#b8a45a")
+        self.set_online(self.helper_online)
+
+    def connect_account(self) -> None:
+        if self.pairing_in_progress:
+            return
+        code = "pvpair_" + secrets.token_urlsafe(32)
+        self.pairing_in_progress = True
+        self.account_button.configure(text="Esperando…", state="disabled")
+        self.account_detail.configure(text="Se abrió PacheVideo en el navegador. Iniciá sesión y confirmá la conexión; la app se habilitará sola.")
+        webbrowser.open(f"https://pachevideo.com/app?desktopPairing={quote(code)}")
+
+        def worker() -> None:
+            deadline = time.monotonic() + 310
+            try:
+                while time.monotonic() < deadline:
+                    try:
+                        paired = cloud_json(f"/desktop/pair?code={quote(code)}", "", timeout=8)
+                        token = str(paired.get("accessToken") or "")
+                        account = paired.get("account")
+                        if not token or not isinstance(account, dict):
+                            raise RuntimeError("La conexión devolvió una respuesta inválida")
+                        save_desktop_token(token)
+                        self.cloud_token = token
+                        self._post(lambda account=account: self.show_account(account))
+                        self._post(lambda: self.set_status("Cuenta conectada", "Video Pro listo para descargar en esta computadora.", 0))
+                        return
+                    except CloudError as error:
+                        if error.status not in {404, 409}:
+                            raise
+                    time.sleep(1)
+                self._post(lambda: self.show_account(None, "La conexión venció. Tocá Conectar cuenta para intentarlo de nuevo."))
+            except Exception as error:
+                self._post(lambda: self.show_account(None, str(error)))
+            finally:
+                self.pairing_in_progress = False
+
+        self._run(worker)
+
+    def refresh_queue(self) -> None:
+        def worker() -> None:
+            try:
+                payload = api_json("/downloads", timeout=5)
+                items = payload.get("items") if isinstance(payload, dict) else []
+                self._post(lambda: self.show_queue(items if isinstance(items, list) else []))
+            except Exception:
+                return
+        self._run(worker)
+
+    def show_queue(self, items: list[dict]) -> None:
+        if not items:
+            self.queue_label.configure(text="Todavía no hay descargas en esta computadora.")
+            return
+        rows: list[str] = []
+        for item in items[:6]:
+            status = str(item.get("status") or "en cola")
+            progress = int(float(item.get("progress") or 0))
+            name = str(item.get("url") or "Archivo").split("?", 1)[0][-56:]
+            rows.append(f"{status.upper()} · {progress}% · {name}")
+        self.queue_label.configure(text="\n".join(rows))
 
     def connect_helper(self) -> None:
         self.download_button.configure(state="disabled")
@@ -309,6 +502,7 @@ class PacheVideoApp(ctk.CTk):
                                 0,
                             ),
                             self.set_default_folder(health.get("outputFolder", "")),
+                            self.refresh_queue(),
                         )
                     )
                     self._run(self.check_for_update)
@@ -416,6 +610,10 @@ class PacheVideoApp(ctk.CTk):
         self.quality_menu.set(values[0])
 
     def start_download(self) -> None:
+        if not self.account or self.account.get("plan") != "pro":
+            self.set_status("Conectá una cuenta Video Pro", "La app de escritorio se habilita con tu cuenta Pro.", 0)
+            self.connect_account()
+            return
         url = self.url_box.get("1.0", "end").strip()
         if not url.startswith(("http://", "https://")):
             self.set_status("Ingresá una URL válida", "Debe comenzar con http:// o https://", 0)
@@ -455,6 +653,7 @@ class PacheVideoApp(ctk.CTk):
                         )
                         time.sleep(retry_in)
                 job_id = created["id"]
+                self.refresh_queue()
                 poll_errors = 0
                 while True:
                     try:
@@ -472,10 +671,13 @@ class PacheVideoApp(ctk.CTk):
                         time.sleep(retry_in)
                         continue
                     self._post(
-                        lambda job=job: self.set_status(
-                            job.get("message", "Descargando…"),
-                            job.get("detail", ""),
-                            float(job.get("progress", 0)),
+                        lambda job=job: (
+                            self.set_status(
+                                job.get("message", "Descargando…"),
+                                job.get("detail", ""),
+                                float(job.get("progress", 0)),
+                            ),
+                            self.refresh_queue(),
                         )
                     )
                     if job.get("status") == "complete":
@@ -497,11 +699,13 @@ class PacheVideoApp(ctk.CTk):
         self.download_button.configure(state="normal")
         self.folder_button.configure(state="normal" if self.current_folder else "disabled")
         self.set_status("Descarga completada", self.current_folder or "Archivo guardado", 100)
+        self.refresh_queue()
 
     def download_failed(self, message: str) -> None:
         self.downloading = False
         self.download_button.configure(state="normal")
         self.set_status("No se pudo descargar", message, 0)
+        self.refresh_queue()
 
     def open_folder(self) -> None:
         if not self.current_folder:

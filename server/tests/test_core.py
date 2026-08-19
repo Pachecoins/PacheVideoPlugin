@@ -1038,6 +1038,44 @@ class BillingSessionTests(unittest.TestCase):
         self.assertEqual(history["items"][0]["title"], "Reel de prueba")
         self.assertEqual(history["items"][0]["thumbnailUrl"], "https://cdn.example.com/thumb.jpg")
 
+    def test_desktop_pairing_is_one_use_and_stores_only_hashes(self) -> None:
+        browser_request = backend.Request(
+            {
+                "type": "http", "method": "POST", "path": "/api/desktop/pair",
+                "headers": [(b"authorization", b"Bearer browser-token")],
+            }
+        )
+        code = "pvpair_" + "a" * 48
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(backend, "DESKTOP_SESSION_SECRET", "test-desktop-secret"),
+                patch.object(backend, "supabase_user_from_request", return_value={"id": "desktop-user", "email": "desktop@example.com"}),
+            ):
+                backend.initialize_database()
+                backend.create_desktop_pair(backend.CreateDesktopPair(code=code), browser_request)
+                paired = backend.consume_desktop_pair(code)
+                with self.assertRaises(backend.HTTPException) as second_use:
+                    backend.consume_desktop_pair(code)
+                desktop_request = backend.Request(
+                    {
+                        "type": "http", "method": "GET", "path": "/api/desktop/account",
+                        "headers": [(b"authorization", f"Bearer {paired['accessToken']}".encode())],
+                    }
+                )
+                account = backend.desktop_account(desktop_request)
+                with backend.database() as connection:
+                    stored_pair = connection.execute("SELECT code_hash FROM desktop_pairs").fetchone()["code_hash"]
+                    stored_session = connection.execute("SELECT token_hash FROM desktop_sessions").fetchone()["token_hash"]
+
+        self.assertEqual(account["email"], "desktop@example.com")
+        self.assertEqual(second_use.exception.status_code, 404)
+        self.assertNotEqual(stored_pair, code)
+        self.assertNotEqual(stored_session, paired["accessToken"])
+
 
 if __name__ == "__main__":
     unittest.main()

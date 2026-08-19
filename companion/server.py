@@ -25,7 +25,7 @@ import yt_dlp
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PACHEVIDEO_PORT", "18765"))
 OUTPUT_FOLDER = Path(os.environ.get("PACHEVIDEO_OUTPUT", "~/Downloads/PacheVideo")).expanduser().resolve()
-VERSION = "0.5.3"
+VERSION = "0.5.5"
 DOWNLOAD_ATTEMPTS = max(1, int(os.environ.get("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "10")))
 RETRY_BASE_SECONDS = max(0.0, float(os.environ.get("PACHEVIDEO_RETRY_BASE_SECONDS", "1.5")))
 RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.environ.get("PACHEVIDEO_RETRY_MAX_SECONDS", "20")))
@@ -671,6 +671,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         if not self._require_access():
+            return
+
+        if self.path == "/downloads":
+            with jobs_lock:
+                payload = [
+                    asdict(job)
+                    for job in sorted(jobs.values(), key=lambda item: item.createdAt, reverse=True)[:40]
+                ]
+            self.send_json(200, {"items": payload})
             return
         if self.path not in {"/downloads", "/folders/allow"}:
             self.send_json(404, {"error": "Ruta inexistente"})

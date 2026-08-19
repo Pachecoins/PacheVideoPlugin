@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, contextmanager
 from hashlib import sha256
+import hmac
 import ipaddress
 import json
 import os
@@ -29,7 +30,7 @@ from pydantic import BaseModel, HttpUrl
 import yt_dlp
 
 
-VERSION = "0.5.1"
+VERSION = "0.5.5"
 DATA_DIR = Path(os.getenv("PACHEVIDEO_DATA_DIR", "/data")).resolve()
 DOWNLOAD_DIR = DATA_DIR / "downloads"
 DB_PATH = DATA_DIR / "pachevideo.sqlite3"
@@ -73,6 +74,9 @@ MP_SUBSCRIPTION_AMOUNT = float(os.getenv("PACHEVIDEO_MP_SUBSCRIPTION_AMOUNT", "9
 MP_SUBSCRIPTION_CURRENCY = os.getenv("PACHEVIDEO_MP_SUBSCRIPTION_CURRENCY", "ARS").strip() or "ARS"
 SUPABASE_URL = os.getenv("PACHEVIDEO_SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("PACHEVIDEO_SUPABASE_ANON_KEY", "").strip()
+DESKTOP_SESSION_SECRET = os.getenv("PACHEVIDEO_DESKTOP_SESSION_SECRET", "").strip()
+DESKTOP_PAIR_TTL_SECONDS = max(60, int(os.getenv("PACHEVIDEO_DESKTOP_PAIR_TTL_SECONDS", "300")))
+DESKTOP_SESSION_TTL_SECONDS = max(86_400, int(os.getenv("PACHEVIDEO_DESKTOP_SESSION_TTL_SECONDS", str(180 * 86_400))))
 TERMS_VERSION = "2026-08-17"
 
 # One-use launch gifts. Only hashes are kept in the repository and database.
@@ -232,6 +236,10 @@ class StartSubscription(BaseModel):
 
 
 class RedeemGiftCode(BaseModel):
+    code: str
+
+
+class CreateDesktopPair(BaseModel):
     code: str
 
 
@@ -400,6 +408,31 @@ def initialize_database() -> None:
             """
         )
         connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS desktop_pairs (
+                code_hash TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                expires_at REAL NOT NULL,
+                consumed_at REAL,
+                created_at REAL NOT NULL,
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS desktop_sessions (
+                token_hash TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                expires_at REAL NOT NULL,
+                created_at REAL NOT NULL,
+                last_seen_at REAL,
+                revoked_at REAL,
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )
+            """
+        )
+        connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_account_expires ON visitor_sessions(account_id, expires_at)"
         )
         connection.execute(
@@ -413,6 +446,12 @@ def initialize_database() -> None:
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_ledger_account_created ON credit_ledger(account_id, created_at)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_desktop_pairs_expires ON desktop_pairs(expires_at)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_desktop_sessions_account_expires ON desktop_sessions(account_id, expires_at)"
         )
         connection.execute("PRAGMA optimize")
 
@@ -598,7 +637,48 @@ def supabase_user_from_request(request: Request) -> dict[str, str] | None:
     return {"id": provider_id, "email": email}
 
 
+def desktop_pair_code_is_valid(code: str) -> bool:
+    return bool(re.fullmatch(r"pvpair_[A-Za-z0-9_-]{32,160}", code))
+
+
+def desktop_session_token(code: str) -> str:
+    if not DESKTOP_SESSION_SECRET:
+        raise HTTPException(status_code=503, detail="La conexión de escritorio todavía no está configurada")
+    digest = hmac.new(
+        DESKTOP_SESSION_SECRET.encode("utf-8"), code.encode("utf-8"), sha256
+    ).hexdigest()
+    return f"pvdesk_{digest}"
+
+
+def desktop_account_from_request(request: Request) -> sqlite3.Row | None:
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.startswith("pvdesk_"):
+        return None
+    now = time.time()
+    with database() as connection:
+        account = connection.execute(
+            """
+            SELECT accounts.* FROM desktop_sessions
+            JOIN accounts ON accounts.id = desktop_sessions.account_id
+            WHERE desktop_sessions.token_hash = ?
+              AND desktop_sessions.expires_at > ?
+              AND desktop_sessions.revoked_at IS NULL
+            """,
+            (session_token_hash(token), now),
+        ).fetchone()
+        if account:
+            connection.execute(
+                "UPDATE desktop_sessions SET last_seen_at = ? WHERE token_hash = ?",
+                (now, session_token_hash(token)),
+            )
+        return account
+
+
 def registered_account_from_request(request: Request) -> sqlite3.Row | None:
+    desktop = desktop_account_from_request(request)
+    if desktop:
+        return desktop
     user = supabase_user_from_request(request)
     if not user:
         return None
@@ -1328,6 +1408,87 @@ def accept_terms(request: Request) -> dict[str, object]:
         )
         updated = connection.execute("SELECT * FROM accounts WHERE id = ?", (current["id"],)).fetchone()
     return account_public(updated)
+
+
+@app.post("/api/desktop/pair")
+def create_desktop_pair(payload: CreateDesktopPair, request: Request) -> dict[str, object]:
+    """Bind a short-lived, one-use pairing code to the signed-in account.
+
+    The browser never receives a persistent desktop credential. The client
+    already knows the high-entropy pairing code and can exchange it once.
+    """
+    account = require_registered_account(request)
+    code = payload.code.strip()
+    if not desktop_pair_code_is_valid(code):
+        raise HTTPException(status_code=400, detail="El código de conexión no es válido")
+    if not DESKTOP_SESSION_SECRET:
+        raise HTTPException(status_code=503, detail="La conexión de escritorio todavía no está configurada")
+    now = time.time()
+    code_hash = session_token_hash(code)
+    with database() as connection:
+        connection.execute("DELETE FROM desktop_pairs WHERE expires_at <= ?", (now,))
+        connection.execute(
+            """
+            INSERT INTO desktop_pairs (code_hash, account_id, expires_at, consumed_at, created_at)
+            VALUES (?, ?, ?, NULL, ?)
+            ON CONFLICT(code_hash) DO UPDATE SET
+                account_id = excluded.account_id,
+                expires_at = excluded.expires_at,
+                consumed_at = NULL,
+                created_at = excluded.created_at
+            """,
+            (code_hash, account["id"], now + DESKTOP_PAIR_TTL_SECONDS, now),
+        )
+    return {"ok": True, "expiresIn": DESKTOP_PAIR_TTL_SECONDS}
+
+
+@app.get("/api/desktop/pair")
+def consume_desktop_pair(code: str) -> dict[str, object]:
+    """Consume a pairing code and issue a local desktop-session credential."""
+    if not desktop_pair_code_is_valid(code):
+        raise HTTPException(status_code=400, detail="El código de conexión no es válido")
+    token = desktop_session_token(code)
+    now = time.time()
+    code_hash = session_token_hash(code)
+    token_hash = session_token_hash(token)
+    with database() as connection:
+        pair = connection.execute(
+            """
+            SELECT * FROM desktop_pairs
+            WHERE code_hash = ? AND expires_at > ? AND consumed_at IS NULL
+            """,
+            (code_hash, now),
+        ).fetchone()
+        if not pair:
+            raise HTTPException(status_code=404, detail="Esperando que confirmes la cuenta en el navegador")
+        consumed = connection.execute(
+            """
+            UPDATE desktop_pairs SET consumed_at = ?
+            WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
+            """,
+            (now, code_hash, now),
+        ).rowcount
+        if not consumed:
+            raise HTTPException(status_code=409, detail="Esta conexión ya fue usada")
+        connection.execute(
+            """
+            INSERT INTO desktop_sessions (token_hash, account_id, expires_at, created_at, last_seen_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(token_hash) DO UPDATE SET
+                account_id = excluded.account_id,
+                expires_at = excluded.expires_at,
+                last_seen_at = excluded.last_seen_at,
+                revoked_at = NULL
+            """,
+            (token_hash, pair["account_id"], now + DESKTOP_SESSION_TTL_SECONDS, now, now),
+        )
+        account = connection.execute("SELECT * FROM accounts WHERE id = ?", (pair["account_id"],)).fetchone()
+    return {"accessToken": token, "account": account_public(account)}
+
+
+@app.get("/api/desktop/account")
+def desktop_account(request: Request) -> dict[str, object]:
+    return account_public(require_registered_account(request))
 
 
 @app.post("/api/billing/subscriptions")
