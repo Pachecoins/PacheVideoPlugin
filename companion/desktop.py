@@ -26,8 +26,11 @@ from release import fetch_latest_release, is_newer_release
 
 
 API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
-CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://pachevideo.com/api").rstrip("/")
-VERSION = "0.5.7"
+# Desktop account pairing uses the public API origin directly. The web origin
+# is protected by a browser-signature challenge that correctly rejects a
+# native Python client before it can receive the one-time pairing response.
+CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://api.pachevideo.com/api").rstrip("/")
+VERSION = "0.5.8"
 
 
 def resource_path(name: str) -> Path:
@@ -109,6 +112,7 @@ def cloud_json(path: str, token: str, payload: dict | None = None, timeout: floa
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": f"PacheVideoDesktop/{VERSION}",
             "Authorization": f"Bearer {token}",
         },
         method="POST" if payload is not None else "GET",
@@ -547,19 +551,19 @@ class PacheVideoApp(ctk.CTk):
             release = fetch_latest_release()
             if not release:
                 if manual:
-                    self._post(lambda: self.update_button.configure(text="No pudimos comprobar", state="normal"))
+                    self._post(lambda: self.update_button.configure(text="No pudimos comprobar", state="normal", text_color="#e9a2ae"))
                 return
             version, url = release
             if not is_newer_release(version, VERSION):
                 if manual:
-                    self._post(lambda: self.update_button.configure(text="Ya tenés la última", state="normal"))
+                    self._post(lambda: self.update_button.configure(text="✓ Estás al día", state="normal", text_color="#7be39a"))
                 return
             self.update_url = url
-            self._post(lambda: self.update_button.configure(text="Actualizar ahora", state="normal", command=self.open_update))
+            self._post(lambda: self.update_button.configure(text="Descargar actualización", state="normal", text_color="#d4af37", command=self.open_update))
         except Exception:
             # An update check must never affect downloading or startup.
             if manual:
-                self._post(lambda: self.update_button.configure(text="No pudimos comprobar", state="normal"))
+                self._post(lambda: self.update_button.configure(text="No pudimos comprobar", state="normal", text_color="#e9a2ae"))
             return
 
     def manual_update_check(self) -> None:
