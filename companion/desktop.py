@@ -18,11 +18,13 @@ from urllib.request import Request, urlopen
 import customtkinter as ctk
 from PIL import Image
 
-from companion.release import fetch_latest_release, is_newer_release
+# The desktop executable is frozen from this directory, so imports must stay
+# sibling-relative instead of requiring the source repository package layout.
+from release import fetch_latest_release, is_newer_release
 
 
 API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
-VERSION = "0.5.3"
+VERSION = "0.5.4"
 
 
 def resource_path(name: str) -> Path:
