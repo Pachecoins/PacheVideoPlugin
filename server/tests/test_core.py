@@ -608,10 +608,10 @@ class BillingSessionTests(unittest.TestCase):
 
         self.assertEqual(saved["token_hash"], backend.session_token_hash(token))
         self.assertEqual(saved["account_id"], account["id"])
-        self.assertEqual(public["freeVideoLimit"], 0)
-        self.assertEqual(public["freeVideosRemaining"], 0)
+        self.assertEqual(public["freeVideoLimit"], 1)
+        self.assertEqual(public["freeVideosRemaining"], 1)
 
-    def test_rotating_anonymous_cookies_keeps_one_network_identity_without_video_credit(self) -> None:
+    def test_rotating_anonymous_cookies_keeps_one_network_identity_with_one_video_trial(self) -> None:
         request = backend.Request(
             {
                 "type": "http",
@@ -637,7 +637,7 @@ class BillingSessionTests(unittest.TestCase):
 
         self.assertEqual(accounts, 1)
         self.assertEqual(identities, 1)
-        self.assertTrue(all(payload["freeVideosRemaining"] == 0 for payload in payloads))
+        self.assertTrue(all(payload["freeVideosRemaining"] == 1 for payload in payloads))
 
     def test_registering_grants_a_fresh_five_video_quota(self) -> None:
         with TemporaryDirectory() as temp:
@@ -681,7 +681,7 @@ class BillingSessionTests(unittest.TestCase):
         self.assertEqual(public["freeVideosRemaining"], 5)
         self.assertIsNone(old_session)
 
-    def test_anonymous_account_must_verify_email_before_video_credit(self) -> None:
+    def test_anonymous_account_can_use_one_network_bound_video_trial(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)
             with (
@@ -704,17 +704,14 @@ class BillingSessionTests(unittest.TestCase):
                     }
                 )
                 payload = backend.CreateJob(url="https://example.com/video")
-                with self.assertRaises(backend.HTTPException) as blocked:
-                    backend.create_job(payload, request)
+                backend.create_job(payload, request)
                 with backend.database() as connection:
                     uses = connection.execute(
                         "SELECT free_video_uses FROM accounts WHERE id = ?",
                         (account["id"],),
                     ).fetchone()["free_video_uses"]
 
-        self.assertEqual(blocked.exception.status_code, 403)
-        self.assertIn("Registrate gratis", blocked.exception.detail)
-        self.assertEqual(uses, 0)
+        self.assertEqual(uses, 1)
 
     def test_repeated_creation_request_returns_the_same_job_without_spending_quota_twice(self) -> None:
         with TemporaryDirectory() as temp:

@@ -592,18 +592,11 @@ export default function DownloaderApp() {
       <section className="desktop-promo" aria-label="Descargar PacheVideo Desktop">
         <span className="desktop-promo-icon" aria-hidden="true">↧</span>
         <span><b>PacheVideo para Windows</b><small>Instalalo para máximo rendimiento en tus descargas.</small></span>
-        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.3/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
+        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.4/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
         <small className="desktop-mac-note">¿Usás Mac? Consultanos para instalarlo.</small>
       </section>
 
       <section className="app-hero" id="inicio">
-        <div className="eyebrow">TU VIDEO, LISTO EN SEGUNDOS</div>
-        <h1>Descargá. Convertí.<br /><span>Seguí creando.</span></h1>
-        <p className="lede">
-          Pegá el enlace, elegí el formato y nosotros hacemos el resto.
-          Sin instalar nada y desde cualquier dispositivo.
-        </p>
-
         <section className={`account-panel ${account?.authenticated ? "signed-in" : ""} ${proCandidate ? "pro-account" : ""}`} id="cuenta" aria-labelledby="account-title">
           <div>
             <span className="account-kicker">TU CUENTA</span>
@@ -693,8 +686,8 @@ export default function DownloaderApp() {
 
         <form className="download-card" onSubmit={submit}>
           <div className="mode-switch" role="group" aria-label="Formato de descarga">
-            <button className={mode === "video" ? "active" : ""} type="button" onClick={() => setMode("video")} disabled={busy}>Video</button>
-            <button className={mode === "audio" ? "active" : ""} type="button" onClick={() => setMode("audio")} disabled={busy}>Audio</button>
+            <button className={mode === "video" ? "active" : ""} type="button" onClick={() => setMode("video")} disabled={busy}>MP4 · Video</button>
+            <button className={mode === "audio" ? "active" : ""} type="button" onClick={() => setMode("audio")} disabled={busy}>MP3 · Audio</button>
           </div>
 
           {proCandidate && (
@@ -766,12 +759,6 @@ export default function DownloaderApp() {
                 </select>
               </label>
             )}
-            <label>
-              <span>Formato</span>
-              <select value={mode === "video" ? "mp4" : "mp3"} disabled aria-label="Formato final">
-                {mode === "video" ? <option value="mp4">MP4</option> : <option value="mp3">MP3</option>}
-              </select>
-            </label>
           </div>
 
           <div className={`pro-unlock ${proCandidate ? "pro-unlock-active" : ""}`}>

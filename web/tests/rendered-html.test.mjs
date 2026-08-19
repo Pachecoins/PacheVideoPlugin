@@ -27,7 +27,9 @@ test("server-renders the downloader at /app", async () => {
   const html = await response.text();
   assert.match(html, /<title>PacheVideo · Descargador multimedia/);
   assert.match(html, /logo\.png/);
-  assert.match(html, /Descargá\. Convertí\./);
+  assert.doesNotMatch(html, /Descargá\. Convertí\.|TU VIDEO, LISTO EN SEGUNDOS|Pegá el enlace, elegí el formato/);
+  assert.match(html, /MP4 · Video/);
+  assert.match(html, /MP3 · Audio/);
   assert.match(html, /Preparando tu cuenta/);
   assert.match(html, />Inicio<\/a>/);
   assert.match(html, /Recuperando tu sesión/);
@@ -42,7 +44,8 @@ test("server-renders the downloader at /app", async () => {
   assert.match(html, /Instalalo para máximo rendimiento/);
   assert.match(html, /Descargar para Windows/);
   assert.match(html, /Usás Mac\? Consultanos para instalarlo/);
-  assert.match(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /releases\/download\/v0\.5\.3\/PacheVideo-Setup-Windows-x64\.exe/);
+  assert.match(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /releases\/download\/v0\.5\.4\/PacheVideo-Setup-Windows-x64\.exe/);
+  assert.match(await readFile(new URL("../app/globals.css", import.meta.url), "utf8"), /\.account-panel \{ order: 1;/);
   assert.doesNotMatch(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /PacheVideo-Install-macOS\.command/);
   assert.doesNotMatch(html, /YouTube/);
   assert.doesNotMatch(html, /\$10\.000/);

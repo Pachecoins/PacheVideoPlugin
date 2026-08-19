@@ -164,9 +164,9 @@ GIFT_CODE_BADGES = {
 }
 
 FREE_VIDEO_QUALITIES = {"480", "720", "1080"}
-# An anonymous session exists only to preserve the UI. Download credits are
-# granted after the email identity is verified, never by minting cookies.
-ANONYMOUS_FREE_VIDEO_LIMIT = 0
+# A network-bound anonymous session receives one video trial. Registration
+# resets the account to the separate five-video welcome quota.
+ANONYMOUS_FREE_VIDEO_LIMIT = 1
 REGISTERED_FREE_VIDEO_LIMIT = 5
 TRANSIENT_ERROR_MARKERS = (
     "http error 403",
@@ -1512,11 +1512,6 @@ def enqueue_job(
     now = time.time()
     with database() as connection:
         if plan == "free" and payload.mode == "video":
-            if not account["auth_provider_id"]:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Registrate gratis con tu email para obtener 5 videos en 1080p.",
-                )
             video_limit = free_video_limit(account)
             consumed = connection.execute(
                 """
