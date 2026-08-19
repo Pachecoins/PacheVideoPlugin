@@ -62,6 +62,15 @@ function randomKey(byteLength: number) {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
+function isYoutubeUrl(value: string) {
+  try {
+    const host = new URL(value.trim()).hostname.toLowerCase().replace(/\.$/, "");
+    return host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com");
+  } catch {
+    return false;
+  }
+}
+
 function automaticRetrySeconds(failures: number) {
   return Math.min(15, 2 ** Math.min(Math.max(0, failures - 1), 4));
 }
@@ -134,6 +143,7 @@ export default function DownloaderApp() {
   const [startingDownload, setStartingDownload] = useState(false);
   const [desktopPairCode, setDesktopPairCode] = useState("");
   const [desktopPairMessage, setDesktopPairMessage] = useState("");
+  const [showDesktopNotice, setShowDesktopNotice] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const pollFailures = useRef(0);
@@ -505,6 +515,14 @@ export default function DownloaderApp() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (downloadKind === "single" && isYoutubeUrl(url)) {
+      setShowDesktopNotice(true);
+      return;
+    }
+    if (downloadKind === "batch" && batchUrls.split(/\r?\n/).some(isYoutubeUrl)) {
+      setShowDesktopNotice(true);
+      return;
+    }
     await (downloadKind === "batch" ? startBatchDownload() : startDownload());
   }
 
@@ -623,7 +641,7 @@ export default function DownloaderApp() {
       <section className="desktop-promo" aria-label="Descargar PacheVideo Desktop">
         <span className="desktop-promo-icon" aria-hidden="true">↧</span>
         <span><b>PacheVideo para Windows</b><small>Instalalo para máximo rendimiento en tus descargas.</small></span>
-        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.4/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
+        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.5/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
         <small className="desktop-mac-note">¿Usás Mac? Consultanos para instalarlo.</small>
       </section>
 
@@ -992,6 +1010,18 @@ export default function DownloaderApp() {
           </div>
         </section>}
       </section>
+      {showDesktopNotice && (
+        <div className="desktop-notice-backdrop" role="presentation" onMouseDown={() => setShowDesktopNotice(false)}>
+          <section className="desktop-notice" role="dialog" aria-modal="true" aria-labelledby="desktop-notice-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="desktop-notice-close" type="button" aria-label="Cerrar aviso" onClick={() => setShowDesktopNotice(false)}>×</button>
+            <span>DESCARGA EN COMPUTADORA</span>
+            <h2 id="desktop-notice-title">Para descargar de YouTube, instalá PacheVideo Desktop.</h2>
+            <p>La app procesa las descargas localmente en tu PC y usa tu cuenta Video Pro.</p>
+            <a href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.5/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows</a>
+            <button className="desktop-notice-secondary" type="button" onClick={() => setShowDesktopNotice(false)}>Volver</button>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

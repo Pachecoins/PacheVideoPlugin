@@ -44,7 +44,9 @@ test("server-renders the downloader at /app", async () => {
   assert.match(html, /Instalalo para máximo rendimiento/);
   assert.match(html, /Descargar para Windows/);
   assert.match(html, /Usás Mac\? Consultanos para instalarlo/);
-  assert.match(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /releases\/download\/v0\.5\.4\/PacheVideo-Setup-Windows-x64\.exe/);
+  const component = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
+  assert.match(component, /releases\/download\/v0\.5\.5\/PacheVideo-Setup-Windows-x64\.exe/);
+  assert.match(component, /Para descargar de YouTube, instalá PacheVideo Desktop/);
   assert.match(await readFile(new URL("../app/globals.css", import.meta.url), "utf8"), /\.account-panel \{ order: 1;/);
   assert.doesNotMatch(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /PacheVideo-Install-macOS\.command/);
   assert.doesNotMatch(html, /YouTube/);
