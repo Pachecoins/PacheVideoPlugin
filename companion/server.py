@@ -25,7 +25,7 @@ import yt_dlp
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PACHEVIDEO_PORT", "18765"))
 OUTPUT_FOLDER = Path(os.environ.get("PACHEVIDEO_OUTPUT", "~/Downloads/PacheVideo")).expanduser().resolve()
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 DOWNLOAD_ATTEMPTS = max(1, int(os.environ.get("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "10")))
 RETRY_BASE_SECONDS = max(0.0, float(os.environ.get("PACHEVIDEO_RETRY_BASE_SECONDS", "1.5")))
 RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.environ.get("PACHEVIDEO_RETRY_MAX_SECONDS", "20")))
@@ -283,6 +283,13 @@ def is_retryable_download_error(error: Exception) -> bool:
     )
 
 
+def retry_limit_for_error(error: Exception) -> int:
+    """Avoid making people wait through repeated identical origin denials."""
+    if "http error 403" in str(error).lower():
+        return min(DOWNLOAD_ATTEMPTS, 2)
+    return DOWNLOAD_ATTEMPTS
+
+
 def retry_delay_seconds(attempt: int) -> float:
     return min(RETRY_MAX_SECONDS, RETRY_BASE_SECONDS * (2 ** max(0, attempt - 1)))
 
@@ -520,7 +527,12 @@ def run_download(job: Job) -> None:
                 break
             except Exception as error:
                 last_error = error
-                if attempt >= DOWNLOAD_ATTEMPTS or not is_retryable_download_error(error):
+                if attempt >= retry_limit_for_error(error) or not is_retryable_download_error(error):
+                    if "http error 403" in str(error).lower():
+                        raise RuntimeError(
+                            "Esta fuente rechazó la reproducción desde la app. "
+                            "Probamos formatos alternativos, pero no respondió."
+                        ) from error
                     raise
                 delay = retry_delay_seconds(attempt)
                 update_job(

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+import webbrowser
 from tkinter import filedialog
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -17,9 +18,11 @@ from urllib.request import Request, urlopen
 import customtkinter as ctk
 from PIL import Image
 
+from companion.release import fetch_latest_release, is_newer_release
+
 
 API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 
 
 def resource_path(name: str) -> Path:
@@ -83,6 +86,8 @@ class PacheVideoApp(ctk.CTk):
         self.events: queue.Queue[callable] = queue.Queue()
         self.current_folder: str | None = None
         self.downloading = False
+        self.update_url: str | None = None
+        self.update_checked = False
 
         self._build_ui()
         self.after(50, self._drain_events)
@@ -239,6 +244,15 @@ class PacheVideoApp(ctk.CTk):
         footer.grid(row=3, column=0, padx=28, pady=(8, 20), sticky="ew")
         footer.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(footer, text=f"PacheVideo {VERSION}", text_color="#626262").grid(row=0, column=0, sticky="w")
+        self.update_button = ctk.CTkButton(
+            footer,
+            text="Actualización disponible",
+            width=156,
+            fg_color="transparent",
+            text_color="#d4af37",
+            hover_color="#2b2412",
+            command=self.open_update,
+        )
         ctk.CTkButton(
             footer,
             text="Reconectar",
@@ -247,7 +261,7 @@ class PacheVideoApp(ctk.CTk):
             text_color="#bd74df",
             hover_color="#1d1d1d",
             command=self.connect_helper,
-        ).grid(row=0, column=1, sticky="e")
+        ).grid(row=0, column=2, sticky="e")
 
     def _post(self, callback) -> None:
         self.events.put(callback)
@@ -295,6 +309,7 @@ class PacheVideoApp(ctk.CTk):
                             self.set_default_folder(health.get("outputFolder", "")),
                         )
                     )
+                    self._run(self.check_for_update)
                     return
                 except Exception as error:
                     last_error = error
@@ -310,6 +325,27 @@ class PacheVideoApp(ctk.CTk):
             )
 
         self._run(worker)
+
+    def check_for_update(self) -> None:
+        if self.update_checked:
+            return
+        self.update_checked = True
+        try:
+            release = fetch_latest_release()
+            if not release:
+                return
+            version, url = release
+            if not is_newer_release(version, VERSION):
+                return
+            self.update_url = url
+            self._post(lambda: self.update_button.grid(row=0, column=1, padx=(0, 10), sticky="e"))
+        except Exception:
+            # An update check must never affect downloading or startup.
+            return
+
+    def open_update(self) -> None:
+        if self.update_url:
+            webbrowser.open(self.update_url)
 
     def start_helper(self) -> None:
         try:

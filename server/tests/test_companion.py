@@ -9,6 +9,7 @@ from companion.server import (
     compatibility_selector,
     inspect_media_codecs,
     is_retryable_download_error,
+    retry_limit_for_error,
     selector_for_attempt,
     unique_destination,
 )
@@ -56,6 +57,16 @@ class CompanionReliabilityTests(unittest.TestCase):
         )
         self.assertFalse(
             is_retryable_download_error(yt_dlp.utils.DownloadError("Private video"))
+        )
+
+    def test_desktop_stops_repeating_an_origin_forbidden_response(self) -> None:
+        self.assertEqual(
+            retry_limit_for_error(yt_dlp.utils.DownloadError("HTTP Error 403: Forbidden")),
+            2,
+        )
+        self.assertGreaterEqual(
+            retry_limit_for_error(yt_dlp.utils.DownloadError("HTTP Error 429")),
+            3,
         )
 
     def test_desktop_does_not_overwrite_an_existing_download(self) -> None:
