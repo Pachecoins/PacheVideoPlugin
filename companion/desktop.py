@@ -27,7 +27,7 @@ from release import fetch_latest_release, is_newer_release
 
 API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
 CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://pachevideo.com/api").rstrip("/")
-VERSION = "0.5.5"
+VERSION = "0.5.6"
 
 
 def resource_path(name: str) -> Path:
@@ -147,11 +147,13 @@ class PacheVideoApp(ctk.CTk):
         self.account: dict | None = None
         self.cloud_token = read_desktop_token()
         self.pairing_in_progress = False
+        self.auto_pair_attempted = False
 
         self._build_ui()
         self.after(50, self._drain_events)
         self.after(150, self.connect_helper)
         self.after(300, self.refresh_account)
+        self.after(900, self.auto_connect_account)
 
     def _build_ui(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -461,6 +463,18 @@ class PacheVideoApp(ctk.CTk):
                 self.pairing_in_progress = False
 
         self._run(worker)
+
+    def auto_connect_account(self) -> None:
+        """Use the browser's existing PacheVideo session when available.
+
+        Browsers intentionally do not expose their cookies to desktop programs.
+        Opening the same-origin pairing page keeps that boundary intact while
+        completing immediately for a user who is already signed in.
+        """
+        if self.auto_pair_attempted or self.pairing_in_progress or (self.account and self.account.get("plan") == "pro"):
+            return
+        self.auto_pair_attempted = True
+        self.connect_account()
 
     def refresh_queue(self) -> None:
         def worker() -> None:

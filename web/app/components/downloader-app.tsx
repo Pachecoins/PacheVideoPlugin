@@ -266,6 +266,14 @@ export default function DownloaderApp() {
   }, []);
 
   useEffect(() => {
+    if (!desktopPairCode || account?.authenticated) return;
+    window.setTimeout(() => {
+      document.querySelector("#cuenta")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.querySelector<HTMLInputElement>("#account-email")?.focus();
+    }, 150);
+  }, [desktopPairCode, account?.authenticated]);
+
+  useEffect(() => {
     if (!desktopPairCode || !accessToken || !account?.authenticated || desktopPairSent.current) return;
     desktopPairSent.current = true;
     void (async () => {
@@ -543,7 +551,11 @@ export default function DownloaderApp() {
         email: loginEmail.trim(),
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${window.location.origin}/app`,
+          // Keep the one-time desktop pairing code through Magic Link. The
+          // callback then binds the brand-new account without another step.
+          emailRedirectTo: desktopPairCode
+            ? `${window.location.origin}/app?desktopPairing=${encodeURIComponent(desktopPairCode)}`
+            : `${window.location.origin}/app`,
         },
       }).then(({ error }) => ({ error, timedOut: false })),
       wait(20_000).then(() => ({

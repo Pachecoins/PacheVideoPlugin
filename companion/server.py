@@ -25,7 +25,7 @@ import yt_dlp
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("PACHEVIDEO_PORT", "18765"))
 OUTPUT_FOLDER = Path(os.environ.get("PACHEVIDEO_OUTPUT", "~/Downloads/PacheVideo")).expanduser().resolve()
-VERSION = "0.5.5"
+VERSION = "0.5.6"
 DOWNLOAD_ATTEMPTS = max(1, int(os.environ.get("PACHEVIDEO_DOWNLOAD_ATTEMPTS", "10")))
 RETRY_BASE_SECONDS = max(0.0, float(os.environ.get("PACHEVIDEO_RETRY_BASE_SECONDS", "1.5")))
 RETRY_MAX_SECONDS = max(RETRY_BASE_SECONDS, float(os.environ.get("PACHEVIDEO_RETRY_MAX_SECONDS", "20")))
