@@ -653,7 +653,7 @@ export default function DownloaderApp() {
       <section className="desktop-promo" aria-label="Descargar PacheVideo Desktop">
         <span className="desktop-promo-icon" aria-hidden="true">↧</span>
         <span><b>PacheVideo para Windows</b><small>Instalalo para máximo rendimiento en tus descargas.</small></span>
-        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.7/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
+        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.8/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
         <small className="desktop-mac-note">¿Usás Mac? Consultanos para instalarlo.</small>
       </section>
 
@@ -1029,7 +1029,7 @@ export default function DownloaderApp() {
             <span>DESCARGA EN COMPUTADORA</span>
             <h2 id="desktop-notice-title">Para descargar de YouTube, instalá PacheVideo Desktop.</h2>
             <p>La app procesa las descargas localmente en tu PC y usa tu cuenta Video Pro.</p>
-            <a href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.7/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows</a>
+            <a href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.8/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows</a>
             <button className="desktop-notice-secondary" type="button" onClick={() => setShowDesktopNotice(false)}>Volver</button>
           </section>
         </div>
