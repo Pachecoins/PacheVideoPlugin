@@ -13,7 +13,9 @@ export function trustedProxyHeaders(request: Request) {
   const clientIp = request.headers.get("cf-connecting-ip") || "";
   const internalToken = process.env.PACHEVIDEO_INTERNAL_TOKEN || "";
   return {
-    ...(clientIp ? { "X-Forwarded-For": clientIp } : {}),
+    // A local preview has no authenticated proxy. Never forward a client IP
+    // unless the API can verify the internal proxy token.
+    ...(clientIp && internalToken ? { "X-Forwarded-For": clientIp } : {}),
     ...(internalToken ? { "X-PacheVideo-Internal-Token": internalToken } : {}),
   };
 }

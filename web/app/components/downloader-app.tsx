@@ -6,7 +6,8 @@ import { authIsConfigured, getSupabaseBrowserClient } from "../lib/supabase-brow
 
 type Mode = "video" | "audio";
 type DownloadKind = "single" | "batch";
-const PENDING_GIFT_CODE_KEY = "pachevideo_pending_gift_code";
+type DiscoveryMode = "link" | "search" | "playlist";
+const PENDING_GIFT_CODE_KEY = "pornscraper_pending_gift_code";
 type Job = {
   id: string;
   token: string;
@@ -33,6 +34,7 @@ type Account = {
   authenticated: boolean;
   email?: string | null;
   termsAccepted: boolean;
+  guestMode?: boolean;
 };
 
 type HistoryItem = {
@@ -45,6 +47,13 @@ type HistoryItem = {
   thumbnailUrl?: string | null;
   available: boolean;
   createdAt: number;
+};
+
+type PreviewItem = {
+  url: string;
+  title: string;
+  duration?: number | null;
+  thumbnailUrl?: string | null;
 };
 
 class ApiError extends Error {
@@ -123,6 +132,13 @@ export default function DownloaderApp() {
   const [url, setUrl] = useState("");
   const [batchUrls, setBatchUrls] = useState("");
   const [downloadKind, setDownloadKind] = useState<DownloadKind>("single");
+  const [discoveryMode, setDiscoveryMode] = useState<DiscoveryMode>("link");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [previewLimit, setPreviewLimit] = useState(10);
+  const [previewTitle, setPreviewTitle] = useState("");
+  const [previewItems, setPreviewItems] = useState<PreviewItem[]>([]);
+  const [previewSelected, setPreviewSelected] = useState<string[]>([]);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [quality, setQuality] = useState("1080");
   const [audioKbps, setAudioKbps] = useState("320");
   const [account, setAccount] = useState<Account | null>(null);
@@ -144,6 +160,7 @@ export default function DownloaderApp() {
   const [desktopPairCode, setDesktopPairCode] = useState("");
   const [desktopPairMessage, setDesktopPairMessage] = useState("");
   const [showDesktopNotice, setShowDesktopNotice] = useState(false);
+  const [publicContentConfirmed, setPublicContentConfirmed] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const pollFailures = useRef(0);
@@ -284,7 +301,7 @@ export default function DownloaderApp() {
           body: JSON.stringify({ code: desktopPairCode }),
         });
         await readJson(response);
-        setDesktopPairMessage("Listo: tu cuenta quedó conectada a PacheVideo Desktop. Volvé a la app.");
+        setDesktopPairMessage("Listo: tu cuenta quedó conectada a PornScraper Desktop. Volvé a la app.");
       } catch (error) {
         desktopPairSent.current = false;
         setDesktopPairMessage(error instanceof Error ? error.message : "No pudimos vincular la app.");
@@ -400,6 +417,10 @@ export default function DownloaderApp() {
       setFormError("Tu cuenta se está preparando automáticamente.");
       return;
     }
+    if (!publicContentConfirmed) {
+      setFormError("Confirmá que el contenido es público y autorizado para continuar.");
+      return;
+    }
     if (mode === "video" && account.plan !== "pro" && account.freeVideosRemaining <= 0) {
       setFormError(account.authenticated
         ? `Ya usaste tus ${account.freeVideoLimit} videos gratis. Activá Video Pro para continuar.`
@@ -429,6 +450,7 @@ export default function DownloaderApp() {
               audioKbps,
               requestId,
               requestToken,
+              publicContentConfirmed,
             }),
           });
           const created = (await readJson(response)) as Job;
@@ -459,7 +481,7 @@ export default function DownloaderApp() {
     }
   }
 
-  async function startBatchDownload() {
+  async function startBatchDownload(selectedUrls?: string[]) {
     setFormError("");
     if (!account) {
       setFormError("Tu cuenta se está preparando automáticamente.");
@@ -469,7 +491,11 @@ export default function DownloaderApp() {
       setFormError("Las listas de enlaces están incluidas en Video Pro.");
       return;
     }
-    const urls = Array.from(new Set(batchUrls.split(/\s+/).map((item) => item.trim()).filter(Boolean)));
+    if (!publicContentConfirmed) {
+      setFormError("Confirmá que el contenido es público y autorizado para continuar.");
+      return;
+    }
+    const urls = Array.from(new Set(selectedUrls || batchUrls.split(/\s+/).map((item) => item.trim()).filter(Boolean)));
     if (!urls.length) {
       setFormError("Pegá al menos un enlace para preparar tu lista.");
       return;
@@ -478,6 +504,7 @@ export default function DownloaderApp() {
       setFormError("Video Pro permite hasta 20 enlaces por lista.");
       return;
     }
+    if (selectedUrls) setBatchUrls(urls.join("\n"));
     setJob(null);
     setBatchJobs([]);
     setStartingDownload(true);
@@ -500,6 +527,7 @@ export default function DownloaderApp() {
               audioKbps,
               requestId,
               requestToken,
+              publicContentConfirmed,
             }),
           });
           const created = (await readJson(response)) as { jobs?: Job[] };
@@ -521,8 +549,43 @@ export default function DownloaderApp() {
     }
   }
 
+  async function retryFailedDownload() {
+    if (busy) return;
+    setFormError("");
+    await (downloadKind === "batch" ? startBatchDownload() : startDownload());
+  }
+
+  async function previewDiscovery() {
+    setFormError("");
+    setPreviewBusy(true);
+    try {
+      const response = await fetch("/api/discovery/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        body: JSON.stringify(discoveryMode === "search"
+          ? { searchProvider: "youporn", query: searchQuery, limit: previewLimit }
+          : { playlistUrl: url, limit: previewLimit }),
+      });
+      const result = (await readJson(response)) as { title?: string; items?: PreviewItem[] };
+      const items = result.items || [];
+      setPreviewTitle(result.title || "Vista previa");
+      setPreviewItems(items);
+      setPreviewSelected(items.map((item) => item.url));
+    } catch (error) {
+      setPreviewItems([]);
+      setPreviewSelected([]);
+      setFormError(error instanceof Error ? error.message : "No pudimos crear la vista previa.");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (discoveryMode !== "link" && downloadKind === "single") {
+      await previewDiscovery();
+      return;
+    }
     if (downloadKind === "single" && isYoutubeUrl(url)) {
       setShowDesktopNotice(true);
       return;
@@ -638,9 +701,9 @@ export default function DownloaderApp() {
   return (
     <main className={`site-shell ${proCandidate ? "pro-active" : ""}`}>
       <nav className="topbar" aria-label="Navegación principal">
-        <Link className="brand" href="/" prefetch={false} aria-label="PacheVideo, volver al inicio">
-          <img className="brand-logo" src="/logo.png" alt="" />
-          <span>PACHEVIDEO</span>
+        <Link className="brand" href="/" prefetch={false} aria-label="PornScraper by Porn-Pros, volver al inicio">
+          <img className="brand-logo" src="/pornbros-mark.svg" alt="" />
+          <span>PORN<span className="brand-subtitle">SCRAPER <small>BY PORN-PROS</small></span></span>
         </Link>
         <div className="app-topbar-actions">
           <Link className="back-home-link" href="/" prefetch={false}>Inicio</Link>
@@ -650,18 +713,18 @@ export default function DownloaderApp() {
         </div>
       </nav>
 
-      <section className="desktop-promo" aria-label="Descargar PacheVideo Desktop">
+      <section className="desktop-promo" aria-label="Descargar PornScraper Desktop">
         <span className="desktop-promo-icon" aria-hidden="true">↧</span>
-        <span><b>PacheVideo para Windows</b><small>Instalalo para máximo rendimiento en tus descargas.</small></span>
-        <a className="desktop-download-primary" href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.8/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows <i aria-hidden="true">→</i></a>
+        <span><b>PornScraper para Windows</b><small>Procesá contenido público desde tu computadora.</small></span>
+        <span className="desktop-download-primary" aria-disabled="true">Versión de escritorio próximamente</span>
         <small className="desktop-mac-note">¿Usás Mac? Consultanos para instalarlo.</small>
       </section>
 
       <section className="app-hero" id="inicio">
-        <section className={`account-panel ${account?.authenticated ? "signed-in" : ""} ${proCandidate ? "pro-account" : ""}`} id="cuenta" aria-labelledby="account-title">
+        {!account?.guestMode && <section className={`account-panel ${account?.authenticated ? "signed-in" : ""} ${proCandidate ? "pro-account" : ""}`} id="cuenta" aria-labelledby="account-title">
           {desktopPairCode && (
             <p className="account-auth-message" role="status">
-              {desktopPairMessage || (account?.authenticated ? "Conectando PacheVideo Desktop…" : "Ingresá con tu email para conectar PacheVideo Desktop.")}
+              {desktopPairMessage || (account?.authenticated ? "Conectando PornScraper Desktop…" : "Ingresá con tu email para conectar PornScraper Desktop.")}
             </p>
           )}
           <div>
@@ -678,7 +741,7 @@ export default function DownloaderApp() {
               ? "Estamos comprobando si ya habías iniciado sesión en este dispositivo."
               : account.authenticated
                 ? account.plan === "pro"
-                  ? "Video Pro está vinculado a tu email y funciona en todos tus dispositivos."
+                  ? "El plan Pro está vinculado a tu email y funciona en todos tus dispositivos."
                   : `${account.freeVideosRemaining} de ${account.freeVideoLimit} videos gratis disponibles hasta 1080p.`
                 : "Si es tu primera vez, recibís 5 videos gratis. Si ya tenés cuenta, recuperás tu plan."}</p>
           </div>
@@ -746,9 +809,9 @@ export default function DownloaderApp() {
             </div>
             <a href={account?.authenticated ? "#planes" : "#cuenta"}>{proCandidate ? "Ver tu plan" : account?.authenticated ? "Ver planes" : "Ingresar"}</a>
           </div>
-        </section>
+        </section>}
 
-        {proCandidate && <p className="pro-preview-note" role="status">Video Pro activo · sin anuncios · procesamiento prioritario</p>}
+        {proCandidate && <p className="pro-preview-note" role="status">PornScraper Pro activo · sin anuncios · procesamiento prioritario</p>}
 
         <form className="download-card" onSubmit={submit}>
           <div className="mode-switch" role="group" aria-label="Formato de descarga">
@@ -760,6 +823,14 @@ export default function DownloaderApp() {
             <div className="download-kind-switch" role="group" aria-label="Tipo de descarga">
               <button className={downloadKind === "single" ? "active" : ""} type="button" onClick={() => setDownloadKind("single")} disabled={busy}>Un enlace</button>
               <button className={downloadKind === "batch" ? "active" : ""} type="button" onClick={() => setDownloadKind("batch")} disabled={busy}>Lista Pro</button>
+            </div>
+          )}
+
+          {downloadKind === "single" && (
+            <div className="discovery-switch" role="group" aria-label="Origen del contenido">
+              <button className={discoveryMode === "link" ? "active" : ""} type="button" onClick={() => setDiscoveryMode("link")} disabled={busy}>Enlace</button>
+              <button className={discoveryMode === "search" ? "active" : ""} type="button" onClick={() => setDiscoveryMode("search")} disabled={busy}>Buscar en YouPorn</button>
+              <button className={discoveryMode === "playlist" ? "active" : ""} type="button" onClick={() => setDiscoveryMode("playlist")} disabled={busy}>Playlist pública</button>
             </div>
           )}
 
@@ -781,9 +852,18 @@ export default function DownloaderApp() {
               </div>
               <p>Hasta 20 enlaces, uno por línea. Podés mezclar enlaces de redes y otras fuentes compatibles.</p>
             </div>
+          ) : discoveryMode === "search" ? (
+            <div className="search-input-wrap">
+              <label htmlFor="search-query">Búsqueda pública en YouPorn</label>
+              <input id="search-query" type="search" autoComplete="off" placeholder="Ej.: redhead" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} disabled={busy} required />
+              <label htmlFor="preview-limit">Resultados a previsualizar</label>
+              <select id="preview-limit" value={previewLimit} onChange={(event) => setPreviewLimit(Number(event.target.value))} disabled={busy}>
+                {[1, 2, 3, 5, 10].map((count) => <option key={count} value={count}>{count} videos</option>)}
+              </select>
+            </div>
           ) : (
             <>
-              <label htmlFor="source-url">Enlace del contenido</label>
+              <label htmlFor="source-url">{discoveryMode === "playlist" ? "URL de playlist pública" : "Enlace público del contenido"}</label>
               <div className="url-row">
                 <input
                   id="source-url"
@@ -798,6 +878,14 @@ export default function DownloaderApp() {
                 />
                 <button className="paste-button" type="button" onClick={pasteUrl} disabled={busy}>Pegar</button>
               </div>
+              {discoveryMode === "playlist" && (
+                <label className="playlist-limit" htmlFor="playlist-preview-limit">
+                  <span>Videos a previsualizar</span>
+                  <select id="playlist-preview-limit" value={previewLimit} onChange={(event) => setPreviewLimit(Number(event.target.value))} disabled={busy}>
+                    {[1, 2, 3, 5, 10].map((count) => <option key={count} value={count}>{count} videos</option>)}
+                  </select>
+                </label>
+              )}
             </>
           )}
 
@@ -827,6 +915,17 @@ export default function DownloaderApp() {
             )}
           </div>
 
+          <label className="public-content-confirmation">
+            <input
+              type="checkbox"
+              checked={publicContentConfirmed}
+              onChange={(event) => setPublicContentConfirmed(event.target.checked)}
+              disabled={busy}
+              required
+            />
+            <span>Confirmo que el contenido es público y que tengo autorización para descargarlo. No se aceptan enlaces privados, de pago, con sesión ni con DRM.</span>
+          </label>
+
           <div className={`pro-unlock ${proCandidate ? "pro-unlock-active" : ""}`}>
             <div>
               <strong>{proCandidate ? "Video Pro activo" : "Video Pro"}</strong>
@@ -838,22 +937,40 @@ export default function DownloaderApp() {
           <button
             className="primary-action"
             type={videoQuotaExhausted ? "button" : "submit"}
-            disabled={!account || busy || serverOnline === false}
+            disabled={!account || busy || previewBusy || serverOnline === false}
             onClick={videoQuotaExhausted ? focusRegistration : undefined}
           >
             {!account
               ? "Preparando tu cuenta…"
-              : busy
+              : busy || previewBusy
               ? "Preparando…"
               : videoQuotaExhausted
                 ? account?.authenticated ? "Ingresar código de invitación" : "Registrarme y obtener 5 videos"
-                : downloadKind === "batch" ? "Preparar lista" : "Preparar descarga"} <span>→</span>
+                : downloadKind === "batch" ? "Procesar lista pública" : discoveryMode === "search" || discoveryMode === "playlist" ? "Ver vista previa" : "Procesar contenido público"} <span>→</span>
           </button>
           {!proCandidate && (
             <p className="speed-upgrade-note">* Para descargas más rápidas, actualizate a Video Pro.</p>
           )}
           {formError && <p className="form-error" role="alert">{formError}</p>}
         </form>
+
+        {previewItems.length > 0 && (
+          <section className="discovery-preview" aria-labelledby="preview-title">
+            <div className="discovery-preview-heading">
+              <div><span>VISTA PREVIA</span><h2 id="preview-title">{previewTitle}</h2></div>
+              <strong>{previewSelected.length} seleccionados</strong>
+            </div>
+            <div className="discovery-preview-list">
+              {previewItems.map((item, index) => <label className="discovery-preview-item" key={item.url}>
+                <input type="checkbox" checked={previewSelected.includes(item.url)} onChange={(event) => setPreviewSelected((current) => event.target.checked ? [...current, item.url] : current.filter((value) => value !== item.url))} />
+                <span className="preview-index">{index + 1}</span>
+                {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <span className="preview-fallback" aria-hidden="true">▶</span>}
+                <span><strong>{item.title}</strong><small>{item.duration ? `${Math.floor(item.duration / 60)}:${String(item.duration % 60).padStart(2, "0")}` : "Duración no disponible"}</small></span>
+              </label>)}
+            </div>
+            <button className="primary-action" type="button" disabled={!previewSelected.length || busy} onClick={() => void startBatchDownload(previewSelected)}>Descargar {previewSelected.length} seleccionados <span>→</span></button>
+          </section>
+        )}
 
         {job && (
           <section className={`job-card ${job.status}`} aria-live="polite">
@@ -872,7 +989,7 @@ export default function DownloaderApp() {
               <a
                 className="download-link"
                 href={job.downloadUrl}
-                download={job.fileName || "pachevideo-archivo"}
+                download={job.fileName || "pornscraper-archivo"}
                 target="_self"
                 rel="noopener"
                 onClick={(event) => {
@@ -887,6 +1004,11 @@ export default function DownloaderApp() {
                 Descargar archivo
               </a>
             )}
+            {job.status === "error" && (
+              <button className="retry-action" type="button" disabled={busy} onClick={() => void retryFailedDownload()}>
+                <span aria-hidden="true">↻</span> Reintentar
+              </button>
+            )}
           </section>
         )}
 
@@ -899,6 +1021,11 @@ export default function DownloaderApp() {
               </div>
               <small>Podés descargar cada archivo cuando esté disponible.</small>
             </div>
+            {batchJobs.some((item) => item.status === "error") && (
+              <button className="retry-action" type="button" disabled={busy} onClick={() => void retryFailedDownload()}>
+                <span aria-hidden="true">↻</span> Reintentar lista
+              </button>
+            )}
             {batchJobs.map((item, index) => (
               <article className={`batch-job ${item.status}`} key={item.id}>
                 <div className="batch-job-heading">
@@ -914,7 +1041,7 @@ export default function DownloaderApp() {
                   <a
                     className="download-link"
                     href={item.downloadUrl}
-                    download={item.fileName || `pachevideo-archivo-${index + 1}`}
+                    download={item.fileName || `pornscraper-archivo-${index + 1}`}
                     target="_self"
                     rel="noopener"
                     onClick={(event) => {
@@ -1005,7 +1132,7 @@ export default function DownloaderApp() {
 
             <article className="plan-card featured">
               <span className="popular-pill">MÁS ELEGIDO</span>
-              <span className="plan-name">PACHEVIDEO PRO</span>
+              <span className="plan-name">PORNSCRAPER PRO</span>
               <div className="plan-price"><strong>Pro</strong><span>solo por invitación</span></div>
               <ul>
                 <li><i aria-hidden="true">✓</i> Audio gratis</li>
@@ -1023,13 +1150,12 @@ export default function DownloaderApp() {
         </section>}
       </section>
       {showDesktopNotice && (
-        <div className="desktop-notice-backdrop" role="presentation" onMouseDown={() => setShowDesktopNotice(false)}>
-          <section className="desktop-notice" role="dialog" aria-modal="true" aria-labelledby="desktop-notice-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="desktop-notice-backdrop" role="presentation">
+          <section className="desktop-notice" role="dialog" aria-modal="true" aria-labelledby="desktop-notice-title">
             <button className="desktop-notice-close" type="button" aria-label="Cerrar aviso" onClick={() => setShowDesktopNotice(false)}>×</button>
             <span>DESCARGA EN COMPUTADORA</span>
-            <h2 id="desktop-notice-title">Para descargar de YouTube, instalá PacheVideo Desktop.</h2>
+            <h2 id="desktop-notice-title">La versión de escritorio de PornScraper estará disponible próximamente.</h2>
             <p>La app procesa las descargas localmente en tu PC y usa tu cuenta Video Pro.</p>
-            <a href="https://github.com/Pachecoins/PacheVideoPlugin/releases/download/v0.5.8/PacheVideo-Setup-Windows-x64.exe">Descargar para Windows</a>
             <button className="desktop-notice-secondary" type="button" onClick={() => setShowDesktopNotice(false)}>Volver</button>
           </section>
         </div>

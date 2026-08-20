@@ -5,6 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, contextmanager
 from hashlib import sha256
 import hmac
+from html import unescape
+from html.parser import HTMLParser
 import ipaddress
 import json
 import os
@@ -18,7 +20,7 @@ import subprocess
 import threading
 import time
 from typing import Literal
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request as UrlRequest, urlopen
 from uuid import uuid4
@@ -36,10 +38,29 @@ DOWNLOAD_DIR = DATA_DIR / "downloads"
 DB_PATH = DATA_DIR / "pachevideo.sqlite3"
 FFMPEG = os.getenv("PACHEVIDEO_FFMPEG") or shutil.which("ffmpeg")
 PUBLIC_BASE_URL = os.getenv("PACHEVIDEO_PUBLIC_BASE_URL", "").rstrip("/")
+_public_hostname = (urlparse(PUBLIC_BASE_URL).hostname or "").lower()
+# Local preview convenience only. This can never grant an entitlement on a
+# deployed domain, even when the environment variable is set by mistake.
+DEV_AUTO_PRO = (
+    os.getenv("PACHEVIDEO_DEV_AUTO_PRO", "false").lower() in {"1", "true", "yes"}
+    and _public_hostname in {"localhost", "127.0.0.1", "::1"}
+)
 ALLOWED_HOSTS = {
     value.strip().lower()
     for value in os.getenv("PACHEVIDEO_ALLOWED_HOSTS", "").split(",")
     if value.strip()
+}
+# Subscription and creator-payment platforms are deliberately not supported.
+# The service must never be used with a session, paid post, private link, or
+# any other access-controlled media. Keep this list in code so a deployment
+# setting cannot accidentally turn a public-only tool into a paywall bypasser.
+RESTRICTED_ACCESS_HOSTS = {
+    "onlyfans.com",
+    "cafecito.app",
+    "fansly.com",
+    "patreon.com",
+    "fanvue.com",
+    "justfor.fans",
 }
 ALLOWED_ORIGINS = [
     value.strip()
@@ -220,6 +241,7 @@ class CreateJob(BaseModel):
     audioKbps: Literal["320", "256", "192", "128"] = "320"
     requestId: str | None = None
     requestToken: str | None = None
+    publicContentConfirmed: bool = False
 
 
 class CreateBatch(BaseModel):
@@ -229,6 +251,44 @@ class CreateBatch(BaseModel):
     audioKbps: Literal["320", "256", "192", "128"] = "320"
     requestId: str | None = None
     requestToken: str | None = None
+    publicContentConfirmed: bool = False
+
+
+class PreviewSource(BaseModel):
+    playlistUrl: HttpUrl | None = None
+    searchProvider: Literal["youporn"] | None = None
+    query: str | None = None
+    limit: int = 10
+
+
+class XVideosResultParser(HTMLParser):
+    """Small, defensive parser for public XVideos result cards."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.items: dict[str, dict[str, object]] = {}
+        self.current_url: str | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if tag == "a":
+            href = values.get("href") or ""
+            if href.startswith("/video"):
+                self.current_url = urljoin("https://www.xvideos.es", href)
+                self.items.setdefault(self.current_url, {"url": self.current_url, "title": "", "thumbnailUrl": None})
+        elif tag == "img" and self.current_url:
+            image = values.get("data-src") or values.get("src") or ""
+            if image.startswith("http"):
+                self.items[self.current_url]["thumbnailUrl"] = image
+
+    def handle_data(self, data: str) -> None:
+        if self.current_url and data.strip():
+            current = self.items[self.current_url]
+            current["title"] = f"{current['title']} {data.strip()}".strip()
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a":
+            self.current_url = None
 
 
 class StartSubscription(BaseModel):
@@ -521,6 +581,8 @@ def validate_public_url(raw_url: str) -> None:
         raise ValueError("La URL no es válida")
     if parsed.username or parsed.password:
         raise ValueError("La URL no puede incluir credenciales")
+    if any(host == restricted or host.endswith(f".{restricted}") for restricted in RESTRICTED_ACCESS_HOSTS):
+        raise ValueError("No se admiten plataformas de suscripción, pago o acceso privado")
     if ALLOWED_HOSTS and not any(host == allowed or host.endswith(f".{allowed}") for allowed in ALLOWED_HOSTS):
         raise ValueError("Esta fuente todavía no está habilitada")
     try:
@@ -532,6 +594,61 @@ def validate_public_url(raw_url: str) -> None:
         ip = ipaddress.ip_address(address)
         if not ip.is_global:
             raise ValueError("La URL apunta a una red no permitida")
+
+
+def preview_source_url(payload: PreviewSource) -> str:
+    if payload.playlistUrl:
+        if payload.searchProvider or payload.query:
+            raise ValueError("Elegí una lista pública o una búsqueda, no ambas")
+        return str(payload.playlistUrl)
+    query = (payload.query or "").strip()
+    if payload.searchProvider != "youporn" or not query:
+        raise ValueError("Indicá una búsqueda pública de YouPorn o una URL de lista")
+    if len(query) > 120:
+        raise ValueError("La búsqueda es demasiado larga")
+    return f"https://www.youporn.com/search/?{urlencode({'query': query})}"
+
+
+def public_preview_entry(entry: dict[str, object]) -> dict[str, object] | None:
+    candidate = str(entry.get("webpage_url") or entry.get("url") or "").strip()
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return None
+    try:
+        validate_public_url(candidate)
+    except ValueError:
+        return None
+    duration = entry.get("duration")
+    return {
+        "url": candidate,
+        "title": str(entry.get("title") or "Video sin título")[:240],
+        "duration": int(duration) if isinstance(duration, (int, float)) else None,
+        "thumbnailUrl": public_thumbnail(entry.get("thumbnail")),
+    }
+
+
+def xvideos_public_search(source_url: str, limit: int) -> list[dict[str, object]]:
+    """Read public search cards only; never send cookies or account data."""
+    parsed = urlparse(source_url)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host not in {"xvideos.es", "www.xvideos.es", "xvideos.com", "www.xvideos.com"}:
+        raise ValueError("La búsqueda de XVideos no es válida")
+    if not parse_qs(parsed.query).get("k"):
+        raise ValueError("Indicá una búsqueda de XVideos")
+    request = UrlRequest(source_url, headers={"User-Agent": "Mozilla/5.0 (compatible; PornScraper/1.0)"})
+    with urlopen(request, timeout=15) as response:
+        html = response.read(2_500_000).decode("utf-8", "replace")
+    parser = XVideosResultParser()
+    parser.feed(html)
+    items: list[dict[str, object]] = []
+    for value in parser.items.values():
+        entry = public_preview_entry(value)
+        if entry:
+            entry["title"] = unescape(str(entry["title"]) or "Video público")[:240]
+            items.append(entry)
+        if len(items) >= limit:
+            break
+    return items
 
 
 def format_selector(mode: str, quality: str) -> str:
@@ -569,7 +686,9 @@ def request_client_ip(request: Request) -> str:
     supplied_proxy_headers = bool(forwarded or request.headers.get("cf-connecting-ip"))
     supplied_token = request.headers.get("x-pachevideo-internal-token", "")
     proxy_authenticated = bool(INTERNAL_PROXY_TOKEN) and secrets.compare_digest(supplied_token, INTERNAL_PROXY_TOKEN)
-    if supplied_proxy_headers and not proxy_authenticated:
+    # DEV_AUTO_PRO is itself restricted to a loopback public URL at startup.
+    # The local frontend may add proxy headers while forwarding requests.
+    if supplied_proxy_headers and not proxy_authenticated and not DEV_AUTO_PRO:
         raise HTTPException(status_code=403, detail="Encabezado de proxy no autorizado")
     candidate = forwarded if proxy_authenticated else (request.client.host if request.client else "unknown")
     try:
@@ -762,7 +881,7 @@ def free_video_limit(account: sqlite3.Row) -> int:
 
 
 def effective_plan(account: sqlite3.Row) -> Literal["free", "pro"]:
-    return "pro" if account["plan"] == "pro" or bool(account["pro_gift"]) else "free"
+    return "pro" if DEV_AUTO_PRO or account["plan"] == "pro" or bool(account["pro_gift"]) else "free"
 
 
 def account_public(account: sqlite3.Row) -> dict[str, object]:
@@ -784,6 +903,7 @@ def account_public(account: sqlite3.Row) -> dict[str, object]:
         "email": account["email"],
         "proBadge": account["pro_badge"],
         "termsAccepted": bool(account["terms_accepted_at"] and account["terms_version"] == TERMS_VERSION),
+        "guestMode": DEV_AUTO_PRO,
     }
 
 
@@ -840,14 +960,14 @@ def subscription_back_url(payload: StartSubscription) -> str:
     if MP_BACK_URL:
         return MP_BACK_URL
     if payload.returnUrl is None:
-        raise HTTPException(status_code=503, detail="Falta configurar la URL de retorno de PacheVideo")
+        raise HTTPException(status_code=503, detail="Falta configurar la URL de retorno de PornScraper")
 
     candidate = urlparse(str(payload.returnUrl))
     hostname = (candidate.hostname or "").lower()
     is_local = candidate.scheme == "http" and hostname in {"localhost", "127.0.0.1"}
     is_cloudflare_preview = candidate.scheme == "https" and hostname.endswith(".trycloudflare.com")
     if not (is_local or is_cloudflare_preview):
-        raise HTTPException(status_code=503, detail="Falta configurar la URL pública definitiva de PacheVideo")
+        raise HTTPException(status_code=503, detail="Falta configurar la URL pública definitiva de PornScraper")
     return f"{candidate.scheme}://{candidate.netloc}/app"
 
 
@@ -866,8 +986,8 @@ def is_retryable_download_error(error: Exception) -> bool:
 
 
 DOWNLOAD_ERROR_MESSAGES = {
-    "fuente_no_soportada": "Esta fuente todavía no es compatible con PacheVideo.",
-    "contenido_privado": "El contenido requiere acceso privado y no se puede preparar desde PacheVideo.",
+    "fuente_no_soportada": "Esta fuente todavía no es compatible con PornScraper.",
+    "contenido_privado": "El contenido requiere acceso privado y no se puede preparar desde PornScraper.",
     "contenido_no_disponible": "Este contenido ya no está disponible o no se puede acceder públicamente.",
     "limite_de_tamano": "El archivo supera el tamaño máximo permitido.",
     "limite_de_duracion": "El contenido supera la duración máxima permitida.",
@@ -1350,7 +1470,7 @@ async def lifespan(_: FastAPI):
     executor.shutdown(wait=False, cancel_futures=True)
 
 
-app = FastAPI(title="PacheVideo API", version=VERSION, lifespan=lifespan)
+app = FastAPI(title="PornScraper API", version=VERSION, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -1375,6 +1495,7 @@ def health() -> dict[str, object]:
         "maxActiveJobs": MAX_ACTIVE_JOBS,
         "billingConfigured": bool(MP_ACCESS_TOKEN and MP_BACK_URL),
         "authConfigured": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
+        "devAutoPro": DEV_AUTO_PRO,
     }
 
 
@@ -1647,6 +1768,11 @@ def enqueue_job(
     request_id: str | None = None,
     request_token: str | None = None,
 ) -> dict[str, object]:
+    if not payload.publicContentConfirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Confirmá que el contenido es público y que tenés autorización para obtenerlo",
+        )
     try:
         validate_public_url(raw_url)
     except ValueError as error:
@@ -1785,6 +1911,39 @@ def create_batch(payload: CreateBatch, request: Request) -> dict[str, object]:
         )
         jobs.append(enqueue_job(payload, raw_url, account, "pro", network_identity(request), request_id, request_token))
     return {"jobs": jobs, "total": len(jobs)}
+
+
+@app.post("/api/discovery/preview")
+def preview_discovery(payload: PreviewSource, request: Request) -> dict[str, object]:
+    """Return public metadata only; media is never fetched at preview time."""
+    account = require_account(request)
+    consume_account_rate_limit(account["id"])
+    limit = max(1, min(10, payload.limit))
+    try:
+        source_url = preview_source_url(payload)
+        validate_public_url(source_url)
+        host = (urlparse(source_url).hostname or "").lower().rstrip(".")
+        if host.endswith("xvideos.es") or host.endswith("xvideos.com"):
+            items = xvideos_public_search(source_url, limit)
+            info = {"title": f"XVideos · {parse_qs(urlparse(source_url).query).get('k', ['Resultados'])[0]}"}
+        else:
+            options = {
+                "quiet": True,
+                "no_warnings": True,
+                "extract_flat": True,
+                "playlistend": limit,
+                "socket_timeout": 15,
+                "noplaylist": False,
+            }
+            with yt_dlp.YoutubeDL(options) as downloader:
+                info = downloader.extract_info(source_url, download=False)
+            entries = [public_preview_entry(item) for item in (info.get("entries") or []) if isinstance(item, dict)]
+            items = [item for item in entries if item]
+    except (ValueError, HTTPError, URLError, yt_dlp.utils.DownloadError) as error:
+        raise HTTPException(status_code=400, detail="No pudimos previsualizar esta fuente pública") from error
+    if not items:
+        raise HTTPException(status_code=400, detail="No encontramos videos públicos para previsualizar")
+    return {"title": str(info.get("title") or "Resultados públicos")[:240], "items": items[:limit]}
 
 
 @app.get("/api/jobs/{job_id}")

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function PrivacyPage() {
   return <main className="legal-page">
-    <nav><Link className="brand" href="/app">PACHEVIDEO</Link><Link href="/app">Volver a la app</Link></nav>
+    <nav><Link className="brand" href="/app">PORNSCRAPER BY PORN-PROS</Link><Link href="/app">Volver a la app</Link></nav>
     <article>
       <p className="eyebrow">DOCUMENTO OPERATIVO · REVISIÓN LEGAL PENDIENTE</p>
       <h1>Política de privacidad</h1>
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       <h2>Conservación y seguridad</h2>
       <p>Los archivos de salida se mantienen de forma temporal. Los datos de cuenta y registros de seguridad se conservan solo durante el tiempo necesario para prestar el servicio, cumplir obligaciones y prevenir abuso. Aplicamos controles técnicos razonables, pero ningún sistema es completamente infalible.</p>
       <h2>Tus derechos</h2>
-      <p>Podés solicitar acceso, actualización, rectificación o eliminación de tus datos escribiendo a <a href="mailto:legal@pachevideo.com">legal@pachevideo.com</a>. Para Argentina, estos derechos se interpretan junto con la <a href="https://www.argentina.gob.ar/normativa/nacional/ley-25326-64790/texto" target="_blank" rel="noreferrer">Ley 25.326 de Protección de Datos Personales</a>.</p>
+      <p>Antes del lanzamiento, configurá el correo de privacidad de PornScraper by Porn-Pros para solicitudes de acceso, actualización, rectificación o eliminación de datos. Para Argentina, estos derechos se interpretan junto con la <a href="https://www.argentina.gob.ar/normativa/nacional/ley-25326-64790/texto" target="_blank" rel="noreferrer">Ley 25.326 de Protección de Datos Personales</a>.</p>
       <h2>Cambios</h2>
       <p>Podemos actualizar esta política. Si el cambio es material, solicitaremos nuevamente la aceptación de la versión vigente antes de continuar usando funciones que la requieren.</p>
       <p>Leé también los <Link href="/terminos">Términos de uso</Link> y el proceso de <Link href="/dmca">reclamos de copyright</Link>.</p>

@@ -14,10 +14,18 @@ async function render(path = "/") {
   );
 }
 
-test("redirects the public root directly to the downloader", async () => {
+test("renders the public landing with an external Windows download link", async () => {
   const response = await render();
-  assert.equal(response.status, 307);
-  assert.equal(response.headers.get("location"), "/app");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /PornScraper by Porn-Pros/);
+  assert.match(html, /Descargar para Windows/);
+  assert.match(html, /github\.com\/Porn-Pros\/PornScraper\/releases\/latest\/download\/PornScraper-Setup-Windows-x64\.exe/);
+  assert.match(html, /pornscraper-desktop-preview\.png/);
+  assert.match(html, /contenido público o al que ya tenés acceso autorizado/);
+  assert.doesNotMatch(html, /OnlyFans|Cafecito/i);
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /preview-window-bar|preview-body|preview-input/);
 });
 
 test("server-renders the downloader at /app", async () => {
@@ -25,33 +33,23 @@ test("server-renders the downloader at /app", async () => {
   assert.equal(response.status, 200);
 
   const html = await response.text();
-  assert.match(html, /<title>PacheVideo · Descargador multimedia/);
-  assert.match(html, /logo\.png/);
-  assert.doesNotMatch(html, /Descargá\. Convertí\.|TU VIDEO, LISTO EN SEGUNDOS|Pegá el enlace, elegí el formato/);
+  assert.match(html, /<title>PornScraper by Porn-Pros · Contenido público/);
+  assert.match(html, /pornbros-mark\.svg/);
   assert.match(html, /MP4 · Video/);
   assert.match(html, /MP3 · Audio/);
   assert.match(html, /Preparando tu cuenta/);
   assert.match(html, />Inicio<\/a>/);
   assert.match(html, /Recuperando tu sesión/);
   assert.match(html, /Comprobando cuenta/);
-  assert.match(html, /5 videos gratis al registrarte/);
-  assert.match(html, /Audio sin consumir créditos/);
-  assert.match(html, /Para descargas más rápidas, actualizate a Video Pro/);
-  assert.match(html, /2K, 4K, máxima calidad, listas de enlaces y procesamiento prioritario/);
-  assert.match(html, /solo por invitación/);
-  assert.match(html, /Activación mediante código/);
-  assert.match(html, /PacheVideo para Windows/);
-  assert.match(html, /Instalalo para máximo rendimiento/);
-  assert.match(html, /Descargar para Windows/);
-  assert.match(html, /Usás Mac\? Consultanos para instalarlo/);
+  assert.match(html, /Procesá contenido público/);
+  assert.match(html, /Buscar en YouPorn/);
+  assert.match(html, /Playlist pública/);
   const component = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
-  assert.match(component, /releases\/download\/v0\.5\.8\/PacheVideo-Setup-Windows-x64\.exe/);
-  assert.match(component, /Para descargar de YouTube, instalá PacheVideo Desktop/);
+  assert.match(component, /PornScraper by Porn-Pros/);
+  assert.match(component, /retryFailedDownload/);
   assert.match(await readFile(new URL("../app/globals.css", import.meta.url), "utf8"), /\.account-panel \{ order: 1;/);
-  assert.doesNotMatch(await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8"), /PacheVideo-Install-macOS\.command/);
-  assert.doesNotMatch(html, /YouTube/);
-  assert.doesNotMatch(html, /\$10\.000/);
-  assert.doesNotMatch(html, /Confirmo que el contenido es mío|type="checkbox"/i);
+  assert.doesNotMatch(html, /PacheVideo/);
+  assert.doesNotMatch(html, /OnlyFans|Cafecito/i);
 });
 
 test("legacy Pro page no longer exposes a demo entitlement", async () => {

@@ -6,10 +6,10 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PacheVideo — Videos y audio listos desde cualquier dispositivo",
-  description: "Creá una cuenta gratis y prepará 5 videos hasta 1080p o audio MP3 en la nube. Video Pro desbloquea 2K, 4K y máxima calidad.",
+  title: "PornScraper by Porn-Pros — Procesamiento de contenido público",
+  description: "Procesá contenido público autorizado desde cualquier dispositivo. No se admiten fuentes privadas, pagas o protegidas.",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/logo.png", apple: "/logo.png" },
+  icons: { icon: "/pornbros-mark.svg", apple: "/pornbros-mark.svg" },
 };
 
 export const viewport = {

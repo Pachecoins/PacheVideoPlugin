@@ -1,4 +1,4 @@
-"""Standalone desktop client for PacheVideo Helper."""
+"""Standalone desktop client for PornScraper Helper."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
 # native Python client before it can receive the one-time pairing response.
 CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://api.pachevideo.com/api").rstrip("/")
 VERSION = "0.5.9"
+DEV_GUEST = os.environ.get("PORNSCRAPER_DEV_GUEST", "false").lower() in {"1", "true", "yes"}
 
 
 def resource_path(name: str) -> Path:
@@ -133,7 +134,7 @@ def cloud_json(path: str, token: str, payload: dict | None = None, timeout: floa
 class PacheVideoApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title(f"PacheVideo {VERSION}")
+        self.title(f"PornScraper by Porn-Pros {VERSION}")
         self.geometry("540x760")
         self.minsize(460, 560)
         self.configure(fg_color="#090909")
@@ -156,8 +157,12 @@ class PacheVideoApp(ctk.CTk):
         self._build_ui()
         self.after(50, self._drain_events)
         self.after(150, self.connect_helper)
-        self.after(300, self.refresh_account)
-        self.after(900, self.auto_connect_account)
+        if DEV_GUEST:
+            self.account = {"plan": "pro", "email": "Prueba local"}
+            self.after(200, lambda: self.show_account(self.account))
+        else:
+            self.after(300, self.refresh_account)
+            self.after(900, self.auto_connect_account)
 
     def _build_ui(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -177,24 +182,23 @@ class PacheVideoApp(ctk.CTk):
         header.grid(row=0, column=0, padx=28, pady=(24, 12), sticky="ew")
         header.grid_columnconfigure(1, weight=1)
 
-        logo = Image.open(resource_path("logo.png"))
-        self.logo_image = ctk.CTkImage(light_image=logo, dark_image=logo, size=(52, 52))
-        ctk.CTkLabel(header, text="", image=self.logo_image).grid(row=0, column=0, rowspan=2, padx=(0, 14))
+        ctk.CTkLabel(header, text="P", text_color="#f20c25", font=ctk.CTkFont(size=46, weight="bold")).grid(row=0, column=0, rowspan=2, padx=(0, 14))
         ctk.CTkLabel(
             header,
-            text="PACHEVIDEO",
-            text_color="#d4af37",
+            text="PORNSCRAPER · BY PORN-PROS",
+            text_color="#f25568",
             font=ctk.CTkFont(size=11, weight="bold"),
         ).grid(row=0, column=1, sticky="sw")
         ctk.CTkLabel(
             header,
-            text="Video Downloader",
+            text="Descargas públicas",
             font=ctk.CTkFont(size=24, weight="bold"),
         ).grid(row=1, column=1, sticky="nw")
         self.helper_dot = ctk.CTkLabel(header, text="●", text_color="#e94560", font=ctk.CTkFont(size=18))
         self.helper_dot.grid(row=0, column=2, rowspan=2, padx=(12, 0))
 
         account_card = ctk.CTkFrame(content, fg_color="#151515", corner_radius=16, border_width=1, border_color="#292929")
+        self.account_card = account_card
         account_card.grid(row=1, column=0, padx=28, pady=(0, 10), sticky="ew")
         account_card.grid_columnconfigure(0, weight=1)
         self.account_title = ctk.CTkLabel(account_card, text="Cuenta no conectada", anchor="w", font=ctk.CTkFont(size=14, weight="bold"))
@@ -246,7 +250,7 @@ class PacheVideoApp(ctk.CTk):
         folder_row.grid_columnconfigure(0, weight=1)
         self.folder_entry = ctk.CTkEntry(
             folder_row,
-            placeholder_text="~/Downloads/PacheVideo",
+            placeholder_text="~/Downloads/PornScraper",
             fg_color="#0e0e0e",
             border_color="#353535",
         )
@@ -265,8 +269,8 @@ class PacheVideoApp(ctk.CTk):
         self.mode_menu = ctk.CTkOptionMenu(
             form,
             values=["Video · MP4", "Audio · MP3"],
-            fg_color="#7016a8",
-            button_color="#8c1bd1",
+            fg_color="#8d0719",
+            button_color="#b10a22",
             command=self.mode_changed,
         )
         self.mode_menu.grid(row=6, column=0, padx=(18, 8), sticky="ew")
@@ -283,8 +287,8 @@ class PacheVideoApp(ctk.CTk):
             text="Descargar",
             height=46,
             corner_radius=10,
-            fg_color="#8f1bd4",
-            hover_color="#a72aeb",
+            fg_color="#b10a22",
+            hover_color="#d40d2b",
             font=ctk.CTkFont(size=15, weight="bold"),
             state="disabled",
             command=self.start_download,
@@ -292,8 +296,8 @@ class PacheVideoApp(ctk.CTk):
         self.download_button.grid(row=7, column=0, columnspan=2, padx=18, pady=18, sticky="ew")
         self.speed_note = ctk.CTkLabel(
             form,
-            text="Plan gratis: hasta 2 MB/s. Con Video Pro descargás a máxima velocidad.",
-            text_color="#b8a45a", justify="center", wraplength=420,
+            text="Solo contenido público autorizado.",
+            text_color="#f08a98", justify="center", wraplength=420,
         )
         self.speed_note.grid(row=8, column=0, columnspan=2, padx=18, pady=(0, 16), sticky="ew")
 
@@ -302,7 +306,7 @@ class PacheVideoApp(ctk.CTk):
         progress.grid_columnconfigure(0, weight=1)
         self.status_label = ctk.CTkLabel(
             progress,
-            text="Conectando con PacheVideo Helper…",
+            text="Conectando con PornScraper Helper…",
             anchor="w",
             font=ctk.CTkFont(size=14, weight="bold"),
         )
@@ -344,7 +348,7 @@ class PacheVideoApp(ctk.CTk):
         footer = ctk.CTkFrame(content, fg_color="transparent")
         footer.grid(row=5, column=0, padx=28, pady=(8, 20), sticky="ew")
         footer.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(footer, text=f"PacheVideo {VERSION}", text_color="#626262").grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(footer, text=f"PornScraper by Porn-Pros {VERSION}", text_color="#8e7076").grid(row=0, column=0, sticky="w")
         self.update_button = ctk.CTkButton(
             footer,
             text="Buscar actualización",
@@ -419,6 +423,10 @@ class PacheVideoApp(ctk.CTk):
 
     def show_account(self, account: dict | None, message: str = "") -> None:
         self.account = account
+        if DEV_GUEST:
+            self.account_card.grid_remove()
+            self.set_online(self.helper_online)
+            return
         pro = bool(account and account.get("plan") == "pro")
         if pro:
             email = str(account.get("email") or "Cuenta conectada")

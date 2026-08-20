@@ -28,3 +28,6 @@ Set `PACHEVIDEO_API_URL` in the web runtime to the HTTPS URL of the processing s
 
 Before a public launch, configure `PACHEVIDEO_ALLOWED_HOSTS`, enforce an outbound firewall that blocks private networks, and place account/billing limits in front of job creation.
 
+## Landing and installer
+
+The public landing page lives at `/` and links directly to an externally hosted Windows installer. It does not serve the binary itself. Set `PORNSCRAPER_WINDOWS_DOWNLOAD_URL` to the final HTTPS release URL before publishing (for example, a GitHub Release asset or a file in object storage). The default is the expected GitHub Release asset path and should be replaced or validated after the renamed installer is published.

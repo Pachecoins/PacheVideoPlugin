@@ -75,6 +75,11 @@ class SecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "credenciales"):
             validate_public_url("https://user:secret@example.com/video")
 
+    def test_rejects_subscription_and_creator_payment_platforms(self) -> None:
+        for host in ("onlyfans.com", "www.cafecito.app", "creator.fansly.com"):
+            with self.assertRaisesRegex(ValueError, "suscripción"):
+                validate_public_url(f"https://{host}/post")
+
     @patch("server.app.main.socket.getaddrinfo")
     def test_rejects_private_addresses(self, getaddrinfo) -> None:
         getaddrinfo.return_value = [
@@ -703,7 +708,7 @@ class BillingSessionTests(unittest.TestCase):
                         "client": ("203.0.113.10", 1234),
                     }
                 )
-                payload = backend.CreateJob(url="https://example.com/video")
+                payload = backend.CreateJob(url="https://example.com/video", publicContentConfirmed=True)
                 backend.create_job(payload, request)
                 with backend.database() as connection:
                     uses = connection.execute(
@@ -743,6 +748,7 @@ class BillingSessionTests(unittest.TestCase):
                 payload = backend.CreateJob(
                     url="https://example.com/video",
                     requestId="a" * 32,
+                    publicContentConfirmed=True,
                     requestToken="b" * 64,
                 )
                 first = backend.create_job(payload, request)
@@ -784,7 +790,7 @@ class BillingSessionTests(unittest.TestCase):
                 patch.object(backend.executor, "submit"),
             ):
                 backend.initialize_database()
-                payload = backend.CreateJob(url="https://example.com/video")
+                payload = backend.CreateJob(url="https://example.com/video", publicContentConfirmed=True)
                 account = backend.registered_account_from_request(request)
                 with backend.database() as connection:
                     connection.execute(
@@ -844,6 +850,7 @@ class BillingSessionTests(unittest.TestCase):
                 payload = backend.CreateBatch(
                     urls=["https://youtube.com/watch?v=one", "https://instagram.com/reel/two"],
                     requestId="a" * 32,
+                    publicContentConfirmed=True,
                     requestToken="b" * 64,
                 )
                 first = backend.create_batch(payload, request)
@@ -878,7 +885,7 @@ class BillingSessionTests(unittest.TestCase):
                 patch.object(backend, "consume_rate_limit"),
             ):
                 backend.initialize_database()
-                payload = backend.CreateBatch(urls=["https://youtube.com/watch?v=one"])
+                payload = backend.CreateBatch(urls=["https://youtube.com/watch?v=one"], publicContentConfirmed=True)
                 with self.assertRaises(backend.HTTPException) as blocked:
                     backend.create_batch(payload, request)
 
