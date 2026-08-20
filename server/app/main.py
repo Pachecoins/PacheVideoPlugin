@@ -32,7 +32,7 @@ from pydantic import BaseModel, HttpUrl
 import yt_dlp
 
 
-VERSION = "0.5.5"
+VERSION = "0.5.6"
 DATA_DIR = Path(os.getenv("PACHEVIDEO_DATA_DIR", "/data")).resolve()
 DOWNLOAD_DIR = DATA_DIR / "downloads"
 DB_PATH = DATA_DIR / "pachevideo.sqlite3"
@@ -985,6 +985,14 @@ def is_retryable_download_error(error: Exception) -> bool:
     )
 
 
+def retry_limit_for_error(error: Exception) -> int:
+    """Do not hold a shared worker on a repeated TikTok parser response."""
+    message = str(error).lower()
+    if "tiktok" in message and "unexpected response from webpage request" in message:
+        return 1
+    return DOWNLOAD_ATTEMPTS
+
+
 DOWNLOAD_ERROR_MESSAGES = {
     "fuente_no_soportada": "Esta fuente todavía no es compatible con PornScraper.",
     "contenido_privado": "El contenido requiere acceso privado y no se puede preparar desde PornScraper.",
@@ -1264,7 +1272,7 @@ def run_download(
                 break
             except Exception as error:
                 last_error = error
-                if attempt >= DOWNLOAD_ATTEMPTS or not is_retryable_download_error(error):
+                if attempt >= retry_limit_for_error(error) or not is_retryable_download_error(error):
                     raise
                 delay = retry_delay_seconds(attempt)
                 update_job(

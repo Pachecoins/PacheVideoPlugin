@@ -162,6 +162,12 @@ class SecurityTests(unittest.TestCase):
             yt_dlp.utils.DownloadError("Sign in to confirm you're not a bot")
         ))
 
+    def test_tiktok_parser_response_is_not_retried_for_minutes(self) -> None:
+        error = yt_dlp.utils.DownloadError(
+            "[TikTok] 123: Unexpected response from webpage request"
+        )
+        self.assertEqual(backend.retry_limit_for_error(error), 1)
+
     def test_download_errors_use_closed_public_catalog(self) -> None:
         cases = {
             "Unsupported URL: https://extractor.example/internal": "fuente_no_soportada",
