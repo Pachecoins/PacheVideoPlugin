@@ -7,6 +7,7 @@ import tempfile
 import threading
 import unittest
 import sys
+from unittest import mock
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -86,6 +87,44 @@ class CompanionSecurityTests(unittest.TestCase):
             with self.assertRaises(HTTPError) as bad_host:
                 urlopen(request, timeout=2)
             self.assertEqual(bad_host.exception.code, 400)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_download_routes_keep_listing_and_creation_separate(self) -> None:
+        server = helper.ThreadingHTTPServer(("127.0.0.1", 0), helper.Handler)
+        helper.PORT = server.server_address[1]
+        helper.SESSION_TOKEN = "test-token"
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{helper.PORT}"
+        headers = {"Authorization": "Bearer test-token", "Content-Type": "application/json"}
+        try:
+            request = Request(f"{base}/downloads", headers=headers)
+            with urlopen(request, timeout=2) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn(b'"items"', response.read())
+
+            with tempfile.TemporaryDirectory() as temporary:
+                folder = str(Path(temporary) / "downloads").replace("\\", "\\\\")
+                payload = (
+                    '{"url":"https://example.com/video","mode":"video","quality":"1080",'
+                    '"audioKbps":"320","outputFolder":"' + folder + '"}'
+                ).encode("utf-8")
+                allow = Request(
+                    f"{base}/folders/allow",
+                    data=("{\"outputFolder\":\"" + folder + "\"}").encode("utf-8"),
+                    headers=headers,
+                    method="POST",
+                )
+                with urlopen(allow, timeout=2) as response:
+                    self.assertEqual(response.status, 200)
+                with mock.patch.object(helper, "run_download"):
+                    request = Request(f"{base}/downloads", data=payload, headers=headers, method="POST")
+                    with urlopen(request, timeout=2) as response:
+                        self.assertEqual(response.status, 202)
+                        self.assertIn(b'"id"', response.read())
         finally:
             server.shutdown()
             server.server_close()

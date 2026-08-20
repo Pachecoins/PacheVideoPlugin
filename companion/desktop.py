@@ -30,7 +30,7 @@ API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
 # is protected by a browser-signature challenge that correctly rejects a
 # native Python client before it can receive the one-time pairing response.
 CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://api.pachevideo.com/api").rstrip("/")
-VERSION = "0.5.8"
+VERSION = "0.5.9"
 
 
 def resource_path(name: str) -> Path:
@@ -682,7 +682,12 @@ class PacheVideoApp(ctk.CTk):
                             )
                         )
                         time.sleep(retry_in)
-                job_id = created["id"]
+                job_id = str(created.get("id") or "").strip() if isinstance(created, dict) else ""
+                if not job_id:
+                    detail = created.get("error") or created.get("detail") if isinstance(created, dict) else ""
+                    raise RuntimeError(
+                        str(detail or "El helper no pudo iniciar la descarga. Actualizá PacheVideo y probá de nuevo.")
+                    )
                 self.refresh_queue()
                 poll_errors = 0
                 while True:

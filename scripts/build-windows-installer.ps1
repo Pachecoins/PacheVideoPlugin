@@ -5,7 +5,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "0.5.8"
+$Version = "0.5.9"
 $Root = Split-Path -Parent $PSScriptRoot
 $Build = Join-Path $Root ".build-windows"
 $Venv = Join-Path $Build "venv"
