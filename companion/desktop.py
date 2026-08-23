@@ -296,7 +296,7 @@ class PacheVideoApp(ctk.CTk):
         self.download_button.grid(row=7, column=0, columnspan=2, padx=18, pady=18, sticky="ew")
         self.speed_note = ctk.CTkLabel(
             form,
-            text="Solo contenido público autorizado.",
+            text="Pegá un enlace y elegí el formato de descarga.",
             text_color="#f08a98", justify="center", wraplength=420,
         )
         self.speed_note.grid(row=8, column=0, columnspan=2, padx=18, pady=(0, 16), sticky="ew")

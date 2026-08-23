@@ -160,7 +160,6 @@ export default function DownloaderApp() {
   const [desktopPairCode, setDesktopPairCode] = useState("");
   const [desktopPairMessage, setDesktopPairMessage] = useState("");
   const [showDesktopNotice, setShowDesktopNotice] = useState(false);
-  const [publicContentConfirmed, setPublicContentConfirmed] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const batchPollTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const pollFailures = useRef(0);
@@ -417,10 +416,6 @@ export default function DownloaderApp() {
       setFormError("Tu cuenta se está preparando automáticamente.");
       return;
     }
-    if (!publicContentConfirmed) {
-      setFormError("Confirmá que el contenido es público y autorizado para continuar.");
-      return;
-    }
     if (mode === "video" && account.plan !== "pro" && account.freeVideosRemaining <= 0) {
       setFormError(account.authenticated
         ? `Ya usaste tus ${account.freeVideoLimit} videos gratis. Activá Video Pro para continuar.`
@@ -450,7 +445,6 @@ export default function DownloaderApp() {
               audioKbps,
               requestId,
               requestToken,
-              publicContentConfirmed,
             }),
           });
           const created = (await readJson(response)) as Job;
@@ -491,10 +485,6 @@ export default function DownloaderApp() {
       setFormError("Las listas de enlaces están incluidas en Video Pro.");
       return;
     }
-    if (!publicContentConfirmed) {
-      setFormError("Confirmá que el contenido es público y autorizado para continuar.");
-      return;
-    }
     const urls = Array.from(new Set(selectedUrls || batchUrls.split(/\s+/).map((item) => item.trim()).filter(Boolean)));
     if (!urls.length) {
       setFormError("Pegá al menos un enlace para preparar tu lista.");
@@ -527,7 +517,6 @@ export default function DownloaderApp() {
               audioKbps,
               requestId,
               requestToken,
-              publicContentConfirmed,
             }),
           });
           const created = (await readJson(response)) as { jobs?: Job[] };
@@ -914,17 +903,6 @@ export default function DownloaderApp() {
               </label>
             )}
           </div>
-
-          <label className="public-content-confirmation">
-            <input
-              type="checkbox"
-              checked={publicContentConfirmed}
-              onChange={(event) => setPublicContentConfirmed(event.target.checked)}
-              disabled={busy}
-              required
-            />
-            <span>Confirmo que el contenido es público y que tengo autorización para descargarlo. No se aceptan enlaces privados, de pago, con sesión ni con DRM.</span>
-          </label>
 
           <div className={`pro-unlock ${proCandidate ? "pro-unlock-active" : ""}`}>
             <div>

@@ -183,8 +183,6 @@ input::placeholder, textarea::placeholder { color: #5d5762; }
 .discovery-preview-item strong, .discovery-preview-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .discovery-preview-item strong { color: #f4edf0; font-size: 12px; }
 .discovery-preview-item small { margin-top: 4px; color: #ad9ca2; font-size: 10px; }
-.public-content-confirmation { display: flex !important; align-items: flex-start; gap: 10px; margin: 18px 2px 0 !important; color: #b9b2bf; font-size: 12px; font-weight: 600; line-height: 1.45; cursor: pointer; }
-.public-content-confirmation input { width: 16px; height: 16px; flex: 0 0 auto; margin: 1px 0 0; accent-color: #e10b25; }
 .pro-unlock { min-height: 58px; margin-top: 14px; padding: 10px 11px 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid rgba(242,73,99,.25); border-radius: 13px; background: rgba(162,11,37,.08); }
 .pro-unlock div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .pro-unlock strong { color: #ffe1e5; font-size: 12px; }

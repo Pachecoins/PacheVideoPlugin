@@ -714,7 +714,7 @@ class BillingSessionTests(unittest.TestCase):
                         "client": ("203.0.113.10", 1234),
                     }
                 )
-                payload = backend.CreateJob(url="https://example.com/video", publicContentConfirmed=True)
+                payload = backend.CreateJob(url="https://example.com/video")
                 backend.create_job(payload, request)
                 with backend.database() as connection:
                     uses = connection.execute(

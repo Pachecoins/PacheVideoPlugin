@@ -7,7 +7,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: "PornScraper by Porn-Pros — Procesamiento de contenido público",
-  description: "Procesá contenido público autorizado desde cualquier dispositivo. No se admiten fuentes privadas, pagas o protegidas.",
+  description: "Descargá audio y video desde cualquier dispositivo.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/pornbros-mark.svg", apple: "/pornbros-mark.svg" },
 };

@@ -241,7 +241,6 @@ class CreateJob(BaseModel):
     audioKbps: Literal["320", "256", "192", "128"] = "320"
     requestId: str | None = None
     requestToken: str | None = None
-    publicContentConfirmed: bool = False
 
 
 class CreateBatch(BaseModel):
@@ -251,7 +250,6 @@ class CreateBatch(BaseModel):
     audioKbps: Literal["320", "256", "192", "128"] = "320"
     requestId: str | None = None
     requestToken: str | None = None
-    publicContentConfirmed: bool = False
 
 
 class PreviewSource(BaseModel):
@@ -1776,11 +1774,6 @@ def enqueue_job(
     request_id: str | None = None,
     request_token: str | None = None,
 ) -> dict[str, object]:
-    if not payload.publicContentConfirmed:
-        raise HTTPException(
-            status_code=400,
-            detail="Confirmá que el contenido es público y que tenés autorización para obtenerlo",
-        )
     try:
         validate_public_url(raw_url)
     except ValueError as error:
