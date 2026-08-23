@@ -636,7 +636,7 @@ def xvideos_public_search(source_url: str, limit: int) -> list[dict[str, object]
         raise ValueError("La búsqueda de XVideos no es válida")
     if not parse_qs(parsed.query).get("k"):
         raise ValueError("Indicá una búsqueda de XVideos")
-    request = UrlRequest(source_url, headers={"User-Agent": "Mozilla/5.0 (compatible; PornScraper/1.0)"})
+    request = UrlRequest(source_url, headers={"User-Agent": "Mozilla/5.0 (compatible; PacheVideo/1.0)"})
     with urlopen(request, timeout=15) as response:
         html = response.read(2_500_000).decode("utf-8", "replace")
     parser = XVideosResultParser()
@@ -961,14 +961,14 @@ def subscription_back_url(payload: StartSubscription) -> str:
     if MP_BACK_URL:
         return MP_BACK_URL
     if payload.returnUrl is None:
-        raise HTTPException(status_code=503, detail="Falta configurar la URL de retorno de PornScraper")
+        raise HTTPException(status_code=503, detail="Falta configurar la URL de retorno de PacheVideo")
 
     candidate = urlparse(str(payload.returnUrl))
     hostname = (candidate.hostname or "").lower()
     is_local = candidate.scheme == "http" and hostname in {"localhost", "127.0.0.1"}
     is_cloudflare_preview = candidate.scheme == "https" and hostname.endswith(".trycloudflare.com")
     if not (is_local or is_cloudflare_preview):
-        raise HTTPException(status_code=503, detail="Falta configurar la URL pública definitiva de PornScraper")
+        raise HTTPException(status_code=503, detail="Falta configurar la URL pública definitiva de PacheVideo")
     return f"{candidate.scheme}://{candidate.netloc}/app"
 
 
@@ -995,8 +995,8 @@ def retry_limit_for_error(error: Exception) -> int:
 
 
 DOWNLOAD_ERROR_MESSAGES = {
-    "fuente_no_soportada": "Esta fuente todavía no es compatible con PornScraper.",
-    "contenido_privado": "El contenido requiere acceso privado y no se puede preparar desde PornScraper.",
+    "fuente_no_soportada": "Esta fuente todavía no es compatible con PacheVideo.",
+    "contenido_privado": "El contenido requiere acceso privado y no se puede preparar desde PacheVideo.",
     "contenido_no_disponible": "Este contenido ya no está disponible o no se puede acceder públicamente.",
     "limite_de_tamano": "El archivo supera el tamaño máximo permitido.",
     "limite_de_duracion": "El contenido supera la duración máxima permitida.",
@@ -1479,7 +1479,7 @@ async def lifespan(_: FastAPI):
     executor.shutdown(wait=False, cancel_futures=True)
 
 
-app = FastAPI(title="PornScraper API", version=VERSION, lifespan=lifespan)
+app = FastAPI(title="PacheVideo API", version=VERSION, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,

@@ -1,16 +1,16 @@
 {
-  "name": "PornScraper by Porn-Pros",
-  "short_name": "PornScraper",
-  "description": "Procesamiento de contenido público autorizado.",
+  "name": "PacheVideo",
+  "short_name": "PacheVideo",
+  "description": "Descargador multimedia.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09080b",
   "theme_color": "#09080b",
   "icons": [
     {
-      "src": "/pornbros-mark.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/logo.png",
+      "sizes": "165x165",
+      "type": "image/png",
       "purpose": "any"
     }
   ]

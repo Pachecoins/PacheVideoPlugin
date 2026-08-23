@@ -14,18 +14,10 @@ async function render(path = "/") {
   );
 }
 
-test("renders the public landing with an external Windows download link", async () => {
+test("opens PacheVideo directly at the downloader", async () => {
   const response = await render();
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /PornScraper by Porn-Pros/);
-  assert.match(html, /Descargar para Windows/);
-  assert.match(html, /github\.com\/Porn-Pros\/PornScraper\/releases\/latest\/download\/PornScraper-Setup-Windows-x64\.exe/);
-  assert.match(html, /pornscraper-desktop-preview\.png/);
-  assert.match(html, /contenido público o al que ya tenés acceso autorizado/);
-  assert.doesNotMatch(html, /OnlyFans|Cafecito/i);
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /preview-window-bar|preview-body|preview-input/);
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "/app");
 });
 
 test("server-renders the downloader at /app", async () => {
@@ -33,23 +25,20 @@ test("server-renders the downloader at /app", async () => {
   assert.equal(response.status, 200);
 
   const html = await response.text();
-  assert.match(html, /<title>PornScraper by Porn-Pros · Contenido público/);
-  assert.match(html, /pornbros-mark\.svg/);
+  assert.match(html, /<title>PacheVideo App · Descargador multimedia/);
+  assert.match(html, /logo\.png/);
   assert.match(html, /MP4 · Video/);
   assert.match(html, /MP3 · Audio/);
   assert.match(html, /Preparando tu cuenta/);
   assert.match(html, />Inicio<\/a>/);
   assert.match(html, /Recuperando tu sesión/);
   assert.match(html, /Comprobando cuenta/);
-  assert.match(html, /Procesá contenido público/);
-  assert.match(html, /Buscar en YouPorn/);
   assert.match(html, /Playlist pública/);
   const component = await readFile(new URL("../app/components/downloader-app.tsx", import.meta.url), "utf8");
-  assert.match(component, /PornScraper by Porn-Pros/);
+  assert.match(component, /PacheVideo para Windows/);
   assert.match(component, /retryFailedDownload/);
   assert.match(await readFile(new URL("../app/globals.css", import.meta.url), "utf8"), /\.account-panel \{ order: 1;/);
-  assert.doesNotMatch(html, /PacheVideo/);
-  assert.doesNotMatch(html, /OnlyFans|Cafecito/i);
+  assert.doesNotMatch(html, /PornScraper|Porn-Pros|YouPorn/i);
 });
 
 test("legacy Pro page no longer exposes a demo entitlement", async () => {

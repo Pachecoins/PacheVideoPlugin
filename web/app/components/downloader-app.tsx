@@ -7,7 +7,7 @@ import { authIsConfigured, getSupabaseBrowserClient } from "../lib/supabase-brow
 type Mode = "video" | "audio";
 type DownloadKind = "single" | "batch";
 type DiscoveryMode = "link" | "search" | "playlist";
-const PENDING_GIFT_CODE_KEY = "pornscraper_pending_gift_code";
+const PENDING_GIFT_CODE_KEY = "pachevideo_pending_gift_code";
 type Job = {
   id: string;
   token: string;
@@ -300,7 +300,7 @@ export default function DownloaderApp() {
           body: JSON.stringify({ code: desktopPairCode }),
         });
         await readJson(response);
-        setDesktopPairMessage("Listo: tu cuenta quedó conectada a PornScraper Desktop. Volvé a la app.");
+        setDesktopPairMessage("Listo: tu cuenta quedó conectada a PacheVideo Desktop. Volvé a la app.");
       } catch (error) {
         desktopPairSent.current = false;
         setDesktopPairMessage(error instanceof Error ? error.message : "No pudimos vincular la app.");
@@ -690,9 +690,9 @@ export default function DownloaderApp() {
   return (
     <main className={`site-shell ${proCandidate ? "pro-active" : ""}`}>
       <nav className="topbar" aria-label="Navegación principal">
-        <Link className="brand" href="/" prefetch={false} aria-label="PornScraper by Porn-Pros, volver al inicio">
-          <img className="brand-logo" src="/pornbros-mark.svg" alt="" />
-          <span>PORN<span className="brand-subtitle">SCRAPER <small>BY PORN-PROS</small></span></span>
+        <Link className="brand" href="/" prefetch={false} aria-label="PacheVideo, volver al inicio">
+          <img className="brand-logo" src="/logo.png" alt="" />
+          <span>PACHEVIDEO</span>
         </Link>
         <div className="app-topbar-actions">
           <Link className="back-home-link" href="/" prefetch={false}>Inicio</Link>
@@ -702,9 +702,9 @@ export default function DownloaderApp() {
         </div>
       </nav>
 
-      <section className="desktop-promo" aria-label="Descargar PornScraper Desktop">
+      <section className="desktop-promo" aria-label="Descargar PacheVideo Desktop">
         <span className="desktop-promo-icon" aria-hidden="true">↧</span>
-        <span><b>PornScraper para Windows</b><small>Procesá contenido público desde tu computadora.</small></span>
+        <span><b>PacheVideo para Windows</b><small>Descargá desde tu computadora con máximo rendimiento.</small></span>
         <span className="desktop-download-primary" aria-disabled="true">Versión de escritorio próximamente</span>
         <small className="desktop-mac-note">¿Usás Mac? Consultanos para instalarlo.</small>
       </section>
@@ -713,7 +713,7 @@ export default function DownloaderApp() {
         {!account?.guestMode && <section className={`account-panel ${account?.authenticated ? "signed-in" : ""} ${proCandidate ? "pro-account" : ""}`} id="cuenta" aria-labelledby="account-title">
           {desktopPairCode && (
             <p className="account-auth-message" role="status">
-              {desktopPairMessage || (account?.authenticated ? "Conectando PornScraper Desktop…" : "Ingresá con tu email para conectar PornScraper Desktop.")}
+              {desktopPairMessage || (account?.authenticated ? "Conectando PacheVideo Desktop…" : "Ingresá con tu email para conectar PacheVideo Desktop.")}
             </p>
           )}
           <div>
@@ -800,7 +800,7 @@ export default function DownloaderApp() {
           </div>
         </section>}
 
-        {proCandidate && <p className="pro-preview-note" role="status">PornScraper Pro activo · sin anuncios · procesamiento prioritario</p>}
+        {proCandidate && <p className="pro-preview-note" role="status">PacheVideo Pro activo · sin anuncios · procesamiento prioritario</p>}
 
         <form className="download-card" onSubmit={submit}>
           <div className="mode-switch" role="group" aria-label="Formato de descarga">
@@ -818,7 +818,6 @@ export default function DownloaderApp() {
           {downloadKind === "single" && (
             <div className="discovery-switch" role="group" aria-label="Origen del contenido">
               <button className={discoveryMode === "link" ? "active" : ""} type="button" onClick={() => setDiscoveryMode("link")} disabled={busy}>Enlace</button>
-              <button className={discoveryMode === "search" ? "active" : ""} type="button" onClick={() => setDiscoveryMode("search")} disabled={busy}>Buscar en YouPorn</button>
               <button className={discoveryMode === "playlist" ? "active" : ""} type="button" onClick={() => setDiscoveryMode("playlist")} disabled={busy}>Playlist pública</button>
             </div>
           )}
@@ -967,7 +966,7 @@ export default function DownloaderApp() {
               <a
                 className="download-link"
                 href={job.downloadUrl}
-                download={job.fileName || "pornscraper-archivo"}
+                download={job.fileName || "pachevideo-archivo"}
                 target="_self"
                 rel="noopener"
                 onClick={(event) => {
@@ -1019,7 +1018,7 @@ export default function DownloaderApp() {
                   <a
                     className="download-link"
                     href={item.downloadUrl}
-                    download={item.fileName || `pornscraper-archivo-${index + 1}`}
+                    download={item.fileName || `pachevideo-archivo-${index + 1}`}
                     target="_self"
                     rel="noopener"
                     onClick={(event) => {
@@ -1110,7 +1109,7 @@ export default function DownloaderApp() {
 
             <article className="plan-card featured">
               <span className="popular-pill">MÁS ELEGIDO</span>
-              <span className="plan-name">PORNSCRAPER PRO</span>
+              <span className="plan-name">PACHEVIDEO PRO</span>
               <div className="plan-price"><strong>Pro</strong><span>solo por invitación</span></div>
               <ul>
                 <li><i aria-hidden="true">✓</i> Audio gratis</li>
@@ -1132,7 +1131,7 @@ export default function DownloaderApp() {
           <section className="desktop-notice" role="dialog" aria-modal="true" aria-labelledby="desktop-notice-title">
             <button className="desktop-notice-close" type="button" aria-label="Cerrar aviso" onClick={() => setShowDesktopNotice(false)}>×</button>
             <span>DESCARGA EN COMPUTADORA</span>
-            <h2 id="desktop-notice-title">La versión de escritorio de PornScraper estará disponible próximamente.</h2>
+            <h2 id="desktop-notice-title">La versión de escritorio de PacheVideo estará disponible próximamente.</h2>
             <p>La app procesa las descargas localmente en tu PC y usa tu cuenta Video Pro.</p>
             <button className="desktop-notice-secondary" type="button" onClick={() => setShowDesktopNotice(false)}>Volver</button>
           </section>

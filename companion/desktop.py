@@ -1,4 +1,4 @@
-"""Standalone desktop client for PornScraper Helper."""
+"""Standalone desktop client for PacheVideo Helper."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ API_URL = os.environ.get("PACHEVIDEO_API_URL", "http://127.0.0.1:18765")
 # native Python client before it can receive the one-time pairing response.
 CLOUD_API_URL = os.environ.get("PACHEVIDEO_CLOUD_API_URL", "https://api.pachevideo.com/api").rstrip("/")
 VERSION = "0.5.9"
-DEV_GUEST = os.environ.get("PORNSCRAPER_DEV_GUEST", "false").lower() in {"1", "true", "yes"}
+DEV_GUEST = os.environ.get("PACHEVIDEO_DEV_GUEST", "false").lower() in {"1", "true", "yes"}
 
 
 def resource_path(name: str) -> Path:
@@ -134,7 +134,7 @@ def cloud_json(path: str, token: str, payload: dict | None = None, timeout: floa
 class PacheVideoApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title(f"PornScraper by Porn-Pros {VERSION}")
+        self.title(f"PacheVideo {VERSION}")
         self.geometry("540x760")
         self.minsize(460, 560)
         self.configure(fg_color="#090909")
@@ -185,7 +185,7 @@ class PacheVideoApp(ctk.CTk):
         ctk.CTkLabel(header, text="P", text_color="#f20c25", font=ctk.CTkFont(size=46, weight="bold")).grid(row=0, column=0, rowspan=2, padx=(0, 14))
         ctk.CTkLabel(
             header,
-            text="PORNSCRAPER · BY PORN-PROS",
+            text="PACHEVIDEO",
             text_color="#f25568",
             font=ctk.CTkFont(size=11, weight="bold"),
         ).grid(row=0, column=1, sticky="sw")
@@ -250,7 +250,7 @@ class PacheVideoApp(ctk.CTk):
         folder_row.grid_columnconfigure(0, weight=1)
         self.folder_entry = ctk.CTkEntry(
             folder_row,
-            placeholder_text="~/Downloads/PornScraper",
+            placeholder_text="~/Downloads/PacheVideo",
             fg_color="#0e0e0e",
             border_color="#353535",
         )
@@ -306,7 +306,7 @@ class PacheVideoApp(ctk.CTk):
         progress.grid_columnconfigure(0, weight=1)
         self.status_label = ctk.CTkLabel(
             progress,
-            text="Conectando con PornScraper Helper…",
+            text="Conectando con PacheVideo Helper…",
             anchor="w",
             font=ctk.CTkFont(size=14, weight="bold"),
         )
@@ -348,7 +348,7 @@ class PacheVideoApp(ctk.CTk):
         footer = ctk.CTkFrame(content, fg_color="transparent")
         footer.grid(row=5, column=0, padx=28, pady=(8, 20), sticky="ew")
         footer.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(footer, text=f"PornScraper by Porn-Pros {VERSION}", text_color="#8e7076").grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(footer, text=f"PacheVideo {VERSION}", text_color="#8e7076").grid(row=0, column=0, sticky="w")
         self.update_button = ctk.CTkButton(
             footer,
             text="Buscar actualización",
