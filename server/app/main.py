@@ -171,6 +171,7 @@ LAUNCH_GIFT_CODE_HASHES = (
     "0edc59b091920a093d1e8dc4b6aa0ce282e1e55f8d6cfc19446d95d9ac0aa12d",
     "5c5676a97a2bd327069d332dd46373bc267803397a5e5c0a417ca5d7251faffa",
     "95da8d2b5f92d446ced5703fa2b9a993d7abec82618512875042bf30e2289a6d",
+    "42268bb1219a99605c8a3abc6f68f8339c291403a995a2270ffa5b348682f073",
 )
 
 # Replaced before distribution: keep the old entries invalid even on existing
