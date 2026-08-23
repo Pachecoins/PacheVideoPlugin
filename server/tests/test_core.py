@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import socket
 from pathlib import Path
 import subprocess
@@ -754,7 +755,6 @@ class BillingSessionTests(unittest.TestCase):
                 payload = backend.CreateJob(
                     url="https://example.com/video",
                     requestId="a" * 32,
-                    publicContentConfirmed=True,
                     requestToken="b" * 64,
                 )
                 first = backend.create_job(payload, request)
@@ -796,7 +796,7 @@ class BillingSessionTests(unittest.TestCase):
                 patch.object(backend.executor, "submit"),
             ):
                 backend.initialize_database()
-                payload = backend.CreateJob(url="https://example.com/video", publicContentConfirmed=True)
+                payload = backend.CreateJob(url="https://example.com/video")
                 account = backend.registered_account_from_request(request)
                 with backend.database() as connection:
                     connection.execute(
@@ -856,7 +856,6 @@ class BillingSessionTests(unittest.TestCase):
                 payload = backend.CreateBatch(
                     urls=["https://youtube.com/watch?v=one", "https://instagram.com/reel/two"],
                     requestId="a" * 32,
-                    publicContentConfirmed=True,
                     requestToken="b" * 64,
                 )
                 first = backend.create_batch(payload, request)
@@ -891,7 +890,7 @@ class BillingSessionTests(unittest.TestCase):
                 patch.object(backend, "consume_rate_limit"),
             ):
                 backend.initialize_database()
-                payload = backend.CreateBatch(urls=["https://youtube.com/watch?v=one"], publicContentConfirmed=True)
+                payload = backend.CreateBatch(urls=["https://youtube.com/watch?v=one"])
                 with self.assertRaises(backend.HTTPException) as blocked:
                     backend.create_batch(payload, request)
 
@@ -966,6 +965,11 @@ class BillingSessionTests(unittest.TestCase):
         self.assertEqual(account["plan"], "pro")
         self.assertEqual(account["pro_gift"], 1)
         self.assertEqual(repeated.exception.status_code, 409)
+
+    def test_launch_gift_hashes_are_unique_and_well_formed(self) -> None:
+        codes = backend.LAUNCH_GIFT_CODE_HASHES
+        self.assertEqual(len(codes), len(set(codes)))
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{64}", code_hash) for code_hash in codes))
 
     def test_special_gift_code_adds_account_badge(self) -> None:
         request = backend.Request(
