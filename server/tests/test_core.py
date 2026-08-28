@@ -451,6 +451,43 @@ class DownloadRetryTests(unittest.TestCase):
         self.assertEqual(row["attempt"], 1)
         self.assertEqual(FakeDownloader.calls, 1)
 
+    def test_download_stops_immediately_when_x_marks_video_unavailable(self) -> None:
+        class FakeDownloader:
+            calls = 0
+
+            def __init__(self, _options):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def extract_info(self, _url, download=True):
+                self.__class__.calls += 1
+                raise yt_dlp.utils.DownloadError("[twitter] 123: Video #1 is unavailable")
+
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            with (
+                patch.object(backend, "DATA_DIR", root),
+                patch.object(backend, "DOWNLOAD_DIR", root / "downloads"),
+                patch.object(backend, "DB_PATH", root / "jobs.sqlite3"),
+                patch.object(backend, "DOWNLOAD_ATTEMPTS", 3),
+                patch.object(backend, "RETRY_BASE_SECONDS", 0),
+                patch.object(backend.yt_dlp, "YoutubeDL", FakeDownloader),
+            ):
+                backend.initialize_database()
+                self.insert_job("x-unavailable")
+                backend.run_download("x-unavailable", "https://x.com/pachevideo/status/123", "video", "1080", "320")
+                row = backend.get_job("x-unavailable")
+
+        self.assertEqual(row["status"], "error")
+        self.assertEqual(row["attempt"], 1)
+        self.assertEqual(row["detail"], "Este contenido ya no está disponible o no se puede acceder públicamente.")
+        self.assertEqual(FakeDownloader.calls, 1)
+
     def test_missing_output_is_retried(self) -> None:
         class FakeDownloader:
             calls = 0

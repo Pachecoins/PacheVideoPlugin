@@ -223,6 +223,7 @@ PERMANENT_ERROR_MARKERS = (
     "unsupported url",
     "private video",
     "video unavailable",
+    " is unavailable",
     "login required",
     "sign in to confirm your age",
     "sign in to confirm you're not a bot",
@@ -1015,7 +1016,7 @@ def download_error_category(error: Exception) -> str:
         return "fuente_no_soportada"
     if any(marker in message for marker in ("private video", "private content", "login required", "sign in to confirm your age")):
         return "contenido_privado"
-    if any(marker in message for marker in ("video unavailable", "content unavailable", "deleted", "not a bot", "copyright")):
+    if any(marker in message for marker in ("video unavailable", "video #", " is unavailable", "content unavailable", "deleted", "not a bot", "copyright")):
         return "contenido_no_disponible"
     if any(marker in message for marker in ("max filesize", "max_filesize", "file is larger", "file too large")):
         return "limite_de_tamano"
