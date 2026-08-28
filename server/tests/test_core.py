@@ -19,12 +19,17 @@ from server.app.main import (
     inspect_media_codecs,
     is_retryable_download_error,
     retry_delay_seconds,
+    source_network,
     validate_public_url,
 )
 import yt_dlp
 
 
 class SecurityTests(unittest.TestCase):
+    def test_source_network_detects_x_and_twitter(self) -> None:
+        self.assertEqual(source_network("https://x.com/pachevideo/status/123"), "twitter")
+        self.assertEqual(source_network("https://mobile.twitter.com/pachevideo/status/123"), "twitter")
+
     @unittest.skipUnless(backend.FFMPEG, "FFmpeg no está disponible")
     def test_mpeg_video_is_normalized_to_h264_aac_mp4(self) -> None:
         with TemporaryDirectory() as temp:

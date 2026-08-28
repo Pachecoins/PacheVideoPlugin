@@ -39,7 +39,7 @@ type Account = {
 
 type HistoryItem = {
   id: string;
-  network: "youtube" | "instagram" | "tiktok" | "facebook" | "web";
+  network: "youtube" | "instagram" | "tiktok" | "facebook" | "twitter" | "web";
   mode: Mode;
   quality: string;
   status: Job["status"];
@@ -105,6 +105,7 @@ function NetworkIcon({ network }: { network: HistoryItem["network"] }) {
   if (network === "instagram") return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.3" cy="6.8" r="1" /></svg>;
   if (network === "tiktok") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3v11.1a4.1 4.1 0 1 1-3.2-4V7.4A7.1 7.1 0 1 0 17 14V8.2c1.1 1 2.5 1.6 4 1.6V6.6A4.2 4.2 0 0 1 17 3h-3Z" /></svg>;
   if (network === "facebook") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.7 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V3.9c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4V10H8v3h2.8v8h2.9Z" /></svg>;
+  if (network === "twitter") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 3H22l-6.8 7.8 8 10.2h-6.3L12 14.7 6.5 21H3.4l7.3-8.4L3 3h6.5l4.4 5.7L18.9 3Zm-1.1 16h1.7L8.6 4.9H6.8L17.8 19Z" /></svg>;
   if (network === "youtube") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 7.2a2.8 2.8 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.5.5a2.8 2.8 0 0 0-2 2C2 8.9 2 12 2 12s0 3.1.5 4.8a2.8 2.8 0 0 0 2 2c1.7.5 7.5.5 7.5.5s5.8 0 7.5-.5a2.8 2.8 0 0 0 2-2C22 15.1 22 12 22 12s0-3.1-.5-4.8ZM10 15.5v-7l6 3.5-6 3.5Z" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5S14.4 18.1 12 20.5C9.6 18.1 8.4 15.3 8.4 12S9.6 5.9 12 3.5Z" /></svg>;
 }
@@ -124,7 +125,7 @@ function MageSeal() {
 }
 
 function networkLabel(network: HistoryItem["network"]) {
-  return { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", youtube: "Video", web: "Web" }[network];
+  return { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook", twitter: "X", youtube: "Video", web: "Web" }[network];
 }
 
 export default function DownloaderApp() {

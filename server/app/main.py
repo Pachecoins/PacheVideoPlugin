@@ -567,6 +567,8 @@ def source_network(raw_url: str) -> str:
         return "tiktok"
     if host.endswith("facebook.com") or host.endswith("fb.watch"):
         return "facebook"
+    if host == "x.com" or host.endswith(".x.com") or host == "twitter.com" or host.endswith(".twitter.com"):
+        return "twitter"
     return "web"
 
 
